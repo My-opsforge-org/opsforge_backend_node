@@ -1,3 +1,4 @@
+const { sequelize } = require('../config/database');
 const Message = require('../models/Message');
 const { Op } = require('sequelize');
 
@@ -16,14 +17,14 @@ const getChatHistory = async (req, res) => {
 
     // If 'before' timestamp is provided, get messages before that time
     if (before) {
-      whereClause.created_at = {
+      whereClause.createdAt = {
         [Op.lt]: new Date(before)
       };
     }
 
     const messages = await Message.findAll({
       where: whereClause,
-      order: [['created_at', 'DESC']], // Get newest messages first
+      order: [['createdAt', 'DESC']], // Get newest messages first
       limit: parseInt(limit),
     });
 
@@ -42,7 +43,7 @@ const getChatHistory = async (req, res) => {
     res.json(messages.reverse()); // Return in chronological order
   } catch (error) {
     console.error('Error fetching chat history:', error);
-    res.status(500).json({ error: 'Failed to fetch chat history' });
+    res.status(500).json({ message: 'Error fetching chat history' });
   }
 };
 
@@ -50,7 +51,8 @@ const getChatHistory = async (req, res) => {
 const markAsRead = async (req, res) => {
   try {
     const { userId, otherUserId } = req.params;
-    const result = await Message.update(
+    
+    const [updatedCount] = await Message.update(
       { is_read: true },
       {
         where: {
@@ -63,11 +65,11 @@ const markAsRead = async (req, res) => {
 
     res.json({ 
       message: 'Messages marked as read',
-      updatedCount: result[0] // Number of messages updated
+      updatedCount 
     });
   } catch (error) {
     console.error('Error marking messages as read:', error);
-    res.status(500).json({ error: 'Failed to mark messages as read' });
+    res.status(500).json({ message: 'Error marking messages as read' });
   }
 };
 
@@ -75,6 +77,7 @@ const markAsRead = async (req, res) => {
 const getUnreadCount = async (req, res) => {
   try {
     const { userId } = req.params;
+    
     const count = await Message.count({
       where: {
         receiver_id: userId,
@@ -85,7 +88,7 @@ const getUnreadCount = async (req, res) => {
     res.json({ unreadCount: count });
   } catch (error) {
     console.error('Error getting unread count:', error);
-    res.status(500).json({ error: 'Failed to get unread message count' });
+    res.status(500).json({ message: 'Error getting unread count' });
   }
 };
 
@@ -93,33 +96,72 @@ const getUnreadCount = async (req, res) => {
 const deleteMessage = async (req, res) => {
   try {
     const { messageId } = req.params;
-    const { userId } = req.user; // From auth middleware
+    const userId = req.user.id;
 
     const message = await Message.findOne({
-      where: {
-        id: messageId,
-        [Op.or]: [
-          { sender_id: userId },
-          { receiver_id: userId }
-        ]
-      }
+      where: { id: messageId }
     });
 
     if (!message) {
-      return res.status(404).json({ error: 'Message not found or unauthorized' });
+      return res.status(404).json({
+        message: 'Message not found',
+        code: 'MESSAGE_NOT_FOUND'
+      });
+    }
+
+    if (message.sender_id !== userId) {
+      return res.status(403).json({
+        message: 'Not authorized to delete this message',
+        code: 'UNAUTHORIZED'
+      });
     }
 
     await message.destroy();
     res.json({ message: 'Message deleted successfully' });
   } catch (error) {
     console.error('Error deleting message:', error);
-    res.status(500).json({ error: 'Failed to delete message' });
+    res.status(500).json({ message: 'Error deleting message' });
+  }
+};
+
+const sendMessage = async (req, res) => {
+  try {
+    const { receiverId, content } = req.body;
+    const senderId = req.user.id; // Get from auth middleware
+
+    if (!content || !receiverId) {
+      return res.status(400).json({
+        message: 'Content and receiverId are required',
+        code: 'INVALID_REQUEST'
+      });
+    }
+
+    const message = await Message.create({
+      sender_id: senderId,
+      receiver_id: receiverId,
+      content
+    });
+
+    // Emit the message through Socket.IO if needed
+    if (req.app.get('io')) {
+      const roomId = [senderId, receiverId].sort().join('_');
+      req.app.get('io').to(roomId).emit('receive_message', message);
+    }
+
+    res.status(201).json(message);
+  } catch (error) {
+    console.error('Error sending message:', error);
+    res.status(500).json({ 
+      message: 'Error sending message',
+      code: 'SEND_MESSAGE_ERROR'
+    });
   }
 };
 
 module.exports = {
   getChatHistory,
   markAsRead,
+  sendMessage,
   getUnreadCount,
   deleteMessage
 }; 

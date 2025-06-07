@@ -12,6 +12,9 @@ router.get('/history/:userId/:otherUserId', chatController.getChatHistory);
 // Mark messages as read
 router.put('/read/:userId/:otherUserId', chatController.markAsRead);
 
+// Send a new message
+router.post('/send', chatController.sendMessage);
+
 // Get unread message count for a user
 router.get('/unread/:userId', chatController.getUnreadCount);
 

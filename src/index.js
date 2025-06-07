@@ -28,13 +28,37 @@ app.use(morgan('dev'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Test database connection
+app.get('/api/test-db', async (req, res) => {
+  try {
+    await sequelize.authenticate();
+    const [result] = await sequelize.query('SELECT current_database() as db_name');
+    res.json({
+      message: 'Database connection successful',
+      database: result[0].db_name,
+      env: {
+        host: process.env.POSTGRES_HOST,
+        port: process.env.POSTGRES_PORT,
+        database: process.env.POSTGRES_DB,
+        user: process.env.POSTGRES_USER
+      }
+    });
+  } catch (error) {
+    console.error('Database connection error:', error);
+    res.status(500).json({
+      message: 'Database connection failed',
+      error: error.message
+    });
+  }
+});
+
 // Routes
 app.use('/api/chat', chatRoutes);
-app.use('/api/user', userRoutes);
+app.use('/api/users', userRoutes);
 
 // Basic route
 app.get('/', (req, res) => {
-  res.json({ message: 'Welcome to Go Tripping Backend API' });
+  res.json({ message: 'Welcome to Go Tripping Chat API' });
 });
 
 // Socket.IO authentication middleware
@@ -91,26 +115,36 @@ io.on('connection', (socket) => {
 
 // Error handling middleware
 app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).json({ message: 'Something went wrong!' });
+  console.error('Error:', err);
+  res.status(500).json({ 
+    message: 'Something went wrong!',
+    error: process.env.NODE_ENV === 'development' ? err.message : undefined
+  });
 });
 
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 5001;
 
-// Start server immediately
-httpServer.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
-});
-
-// Initialize database in the background
-sequelize.authenticate()
-  .then(async () => {
+// Initialize database and start server
+async function startServer() {
+  try {
+    // Test database connection
+    await sequelize.authenticate();
     console.log('Database connection established successfully.');
+
+    // Initialize database
     const initialized = await initializeDatabase();
     if (!initialized) {
       console.warn('Database initialization completed with warnings');
     }
-  })
-  .catch(err => {
-    console.error('Database connection error:', err);
-  });
+
+    // Start server
+    httpServer.listen(PORT, () => {
+      console.log(`Server is running on port ${PORT}`);
+    });
+  } catch (error) {
+    console.error('Failed to start server:', error);
+    process.exit(1);
+  }
+}
+
+startServer();

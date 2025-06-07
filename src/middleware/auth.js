@@ -1,91 +1,78 @@
 const jwt = require('jsonwebtoken');
 require('dotenv').config();
+const sequelize = require('../config/database');
 
-const verifyToken = (req, res, next) => {
+// Verify token and check blocklist
+const verifyToken = async (req, res, next) => {
   try {
     // Get token from header
     const authHeader = req.headers.authorization;
-    if (!authHeader) {
-      return res.status(401).json({ 
-        message: 'Authorization header is required',
-        code: 'AUTH_HEADER_MISSING'
-      });
-    }
-
-    // Check if it's a Bearer token
-    if (!authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({ 
-        message: 'Invalid token format. Use Bearer token',
-        code: 'INVALID_TOKEN_FORMAT'
-      });
-    }
-
-    // Extract token
-    const token = authHeader.split(' ')[1];
-    if (!token) {
-      return res.status(401).json({ 
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({
         message: 'No token provided',
-        code: 'TOKEN_MISSING'
+        code: 'NO_TOKEN'
       });
     }
 
-    try {
-      // Verify token
-      const decoded = jwt.verify(token, process.env.JWT_SECRET_KEY);
-      
-      // Check if token has required fields (based on Flask JWT structure)
-      if (!decoded.sub || !decoded.type || !decoded.jti) {
-        return res.status(401).json({ 
-          message: 'Invalid token payload',
-          code: 'INVALID_TOKEN_PAYLOAD'
-        });
-      }
+    const token = authHeader.split(' ')[1];
 
-      // Check if token is expired
-      if (decoded.exp && Date.now() >= decoded.exp * 1000) {
-        return res.status(401).json({ 
-          message: 'Token has expired',
-          code: 'TOKEN_EXPIRED'
-        });
+    // First verify the token to ensure it's valid
+    const verified = jwt.verify(token, process.env.JWT_SECRET_KEY);
+    
+    // Check if token is in blocklist using the jti
+    const [blockedToken] = await sequelize.query(
+      'SELECT * FROM token_blocklist WHERE jti = :jti',
+      {
+        replacements: { jti: verified.jti },
+        type: sequelize.QueryTypes.SELECT
       }
+    );
 
-      // Check if token is not yet valid
-      if (decoded.nbf && Date.now() < decoded.nbf * 1000) {
-        return res.status(401).json({ 
-          message: 'Token is not yet valid',
-          code: 'TOKEN_NOT_VALID'
-        });
-      }
-
-      // Attach user info to request
-      req.user = {
-        id: decoded.sub,  // Flask JWT uses 'sub' for user ID
-        tokenType: decoded.type,
-        tokenId: decoded.jti
-      };
-
-      next();
-    } catch (error) {
-      if (error.name === 'TokenExpiredError') {
-        return res.status(401).json({ 
-          message: 'Token has expired',
-          code: 'TOKEN_EXPIRED'
-        });
-      }
-      if (error.name === 'JsonWebTokenError') {
-        return res.status(401).json({ 
-          message: 'Invalid token',
-          code: 'INVALID_TOKEN'
-        });
-      }
-      throw error;
+    if (blockedToken) {
+      return res.status(401).json({
+        message: 'Token has been invalidated',
+        code: 'TOKEN_INVALIDATED'
+      });
     }
+
+    // Add user info to request
+    req.user = verified;
+    next();
   } catch (error) {
+    if (error.name === 'JsonWebTokenError') {
+      return res.status(401).json({
+        message: 'Invalid token',
+        code: 'INVALID_TOKEN'
+      });
+    }
+    if (error.name === 'TokenExpiredError') {
+      return res.status(401).json({
+        message: 'Token expired',
+        code: 'TOKEN_EXPIRED'
+      });
+    }
     console.error('Auth middleware error:', error);
-    return res.status(500).json({ 
-      message: 'Internal server error during authentication',
+    res.status(500).json({
+      message: 'Authentication error',
       code: 'AUTH_ERROR'
     });
+  }
+};
+
+// Add token to blocklist
+const addToBlocklist = async (token) => {
+  try {
+    await sequelize.query(
+      'INSERT INTO token_blocklist (token, created_at) VALUES (:token, NOW())',
+      {
+        replacements: { token },
+        type: sequelize.QueryTypes.INSERT
+      }
+    );
+    return true;
+  } catch (error) {
+    console.error('Error adding token to blocklist:', error);
+    return false;
   }
 };
 
@@ -112,5 +99,6 @@ const checkRole = (roles) => {
 
 module.exports = {
   verifyToken,
+  addToBlocklist,
   checkRole
 }; 
