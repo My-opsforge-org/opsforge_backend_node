@@ -127,7 +127,11 @@ const deleteMessage = async (req, res) => {
 const sendMessage = async (req, res) => {
   try {
     const { receiverId, content } = req.body;
-    const senderId = req.user.id; // Get from auth middleware
+    
+    // Get user ID from JWT token
+    const senderId = req.user.id;
+    
+    console.log('Sending message:', { senderId, receiverId, content, user: req.user });
 
     if (!content || !receiverId) {
       return res.status(400).json({
@@ -136,11 +140,36 @@ const sendMessage = async (req, res) => {
       });
     }
 
+    // Validate receiverId is a number
+    if (isNaN(Number(receiverId))) {
+      return res.status(400).json({
+        message: 'Invalid receiverId format',
+        code: 'INVALID_RECEIVER_ID'
+      });
+    }
+
+    // Check if receiver exists using Message model
+    const receiverExists = await Message.findOne({
+      where: {
+        receiver_id: Number(receiverId)
+      },
+      limit: 1
+    });
+
+    if (!receiverExists) {
+      return res.status(404).json({
+        message: 'Receiver not found',
+        code: 'RECEIVER_NOT_FOUND'
+      });
+    }
+
     const message = await Message.create({
-      sender_id: senderId,
-      receiver_id: receiverId,
+      sender_id: Number(senderId),
+      receiver_id: Number(receiverId),
       content
     });
+
+    console.log('Message created:', message.toJSON());
 
     // Emit the message through Socket.IO if needed
     if (req.app.get('io')) {
@@ -150,10 +179,19 @@ const sendMessage = async (req, res) => {
 
     res.status(201).json(message);
   } catch (error) {
-    console.error('Error sending message:', error);
+    console.error('Detailed error in sendMessage:', {
+      message: error.message,
+      stack: error.stack,
+      name: error.name,
+      sql: error.sql,
+      sqlMessage: error.sqlMessage,
+      user: req.user
+    });
+    
     res.status(500).json({ 
       message: 'Error sending message',
-      code: 'SEND_MESSAGE_ERROR'
+      code: 'SEND_MESSAGE_ERROR',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 };

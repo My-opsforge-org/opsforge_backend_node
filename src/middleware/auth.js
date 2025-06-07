@@ -36,7 +36,10 @@ const verifyToken = async (req, res, next) => {
     }
 
     // Add user info to request
-    req.user = verified;
+    req.user = {
+      id: verified.sub, // Use sub as the user ID
+      ...verified
+    };
     next();
   } catch (error) {
     if (error.name === 'JsonWebTokenError') {
