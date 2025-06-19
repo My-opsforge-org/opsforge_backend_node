@@ -10,17 +10,18 @@ const getAllUsers = async (req, res) => {
     const users = await sequelize.query(
       `SELECT 
         id,
-        username,
         name,
         email,
         "avatarUrl",
         bio,
         age,
         gender,
+        sun_sign,
         interests,
         latitude,
         longitude,
-        "createdAt"
+        "createdAt",
+        "updatedAt"
       FROM "user"
       ORDER BY "createdAt" DESC`,
       {
@@ -41,34 +42,44 @@ const getAllUsers = async (req, res) => {
           ? { lat: user.latitude, lng: user.longitude }
           : null;
 
+        // Placeholder for followers_count and following_count (requires join or subquery in real DB)
+        const followers_count = user.followers_count || 0;
+        const following_count = user.following_count || 0;
+
         // Return formatted user object
         return {
           id: user.id,
-          username: user.username,
           name: user.name || null,
           email: user.email,
           avatarUrl: user.avatarUrl || null,
           bio: user.bio || null,
           age: user.age || null,
           gender: user.gender || null,
+          sun_sign: user.sun_sign || null,
           interests: interests,
           location: location,
-          createdAt: user.createdAt
+          createdAt: user.createdAt,
+          updatedAt: user.updatedAt,
+          followers_count: followers_count,
+          following_count: following_count
         };
       } catch (parseError) {
         console.error('Error parsing user data:', parseError);
         return {
           id: user.id,
-          username: user.username,
           name: user.name || null,
           email: user.email,
           avatarUrl: user.avatarUrl || null,
           bio: user.bio || null,
           age: user.age || null,
           gender: user.gender || null,
+          sun_sign: user.sun_sign || null,
           interests: [],
           location: null,
-          createdAt: user.createdAt
+          createdAt: user.createdAt,
+          updatedAt: user.updatedAt,
+          followers_count: 0,
+          following_count: 0
         };
       }
     });

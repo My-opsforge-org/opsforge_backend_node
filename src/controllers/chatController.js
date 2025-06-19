@@ -1,6 +1,7 @@
 const { sequelize } = require('../config/database');
 const Message = require('../models/Message');
 const { Op } = require('sequelize');
+const User = require('../models/User');
 
 // Get chat history between two users
 const getChatHistory = async (req, res) => {
@@ -131,7 +132,7 @@ const sendMessage = async (req, res) => {
     // Get user ID from JWT token
     const senderId = req.user.id;
     
-    console.log('Sending message:', { senderId, receiverId, content, user: req.user });
+    // console.log('Sending message:', { senderId, receiverId, content, user: req.user });
 
     if (!content || !receiverId) {
       return res.status(400).json({
@@ -148,14 +149,11 @@ const sendMessage = async (req, res) => {
       });
     }
 
-    // Check if receiver exists using Message model
-    const receiverExists = await Message.findOne({
-      where: {
-        receiver_id: Number(receiverId)
-      },
-      limit: 1
+    console.log('Looking for user with id:', receiverId);
+    const receiverExists = await User.findOne({
+      where: { id: Number(receiverId) }
     });
-
+    console.log('Receiver found:', receiverExists);
     if (!receiverExists) {
       return res.status(404).json({
         message: 'Receiver not found',
