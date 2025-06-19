@@ -9,6 +9,7 @@ const sequelize = require('./config/database');
 const initializeDatabase = require('./config/initDb');
 const chatRoutes = require('./routes/chatRoutes');
 const userRoutes = require('./routes/userRoutes');
+const communityChatRoutes = require('./routes/communityChatRoutes');
 const Message = require('./models/Message');
 require('dotenv').config();
 
@@ -55,6 +56,7 @@ app.get('/api/test-db', async (req, res) => {
 // Routes
 app.use('/api/chat', chatRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/community-chat', communityChatRoutes);
 
 // Basic route
 app.get('/', (req, res) => {
