@@ -1,0 +1,110 @@
+name: Deploy Node.js Backend to Azure VM
+
+on:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+        env:
+          NODE_ENV: test
+          DATABASE_URL: postgresql://postgres:admin@gotrip-postgres.postgres.database.azure.com:5432/gotripdb
+          JWT_SECRET_KEY: aftabs_jwt_secret_key
+          SECRET_KEY: aftabs_secret_key
+
+      - name: Install sshpass
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y sshpass
+
+      - name: Clean app directory on VM
+        run: |
+          sshpass -p ${{ secrets.VM_PASSWORD }} ssh -o StrictHostKeyChecking=no ${{ secrets.VM_USERNAME }}@${{ secrets.VM_PUBLIC_IP }} "\
+            rm -rf /home/${{ secrets.VM_USERNAME }}/node-backend && \
+            mkdir -p /home/${{ secrets.VM_USERNAME }}/node-backend \
+          "
+
+      - name: Copy code to VM
+        run: |
+          sshpass -p ${{ secrets.VM_PASSWORD }} scp -o StrictHostKeyChecking=no -r . ${{ secrets.VM_USERNAME }}@${{ secrets.VM_PUBLIC_IP }}:/home/${{ secrets.VM_USERNAME }}/node-backend
+
+      - name: Install Node.js and dependencies on VM
+        run: |
+          sshpass -p ${{ secrets.VM_PASSWORD }} ssh -o StrictHostKeyChecking=no ${{ secrets.VM_USERNAME }}@${{ secrets.VM_PUBLIC_IP }} "\
+            cd /home/${{ secrets.VM_USERNAME }}/node-backend && \
+            curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash - && \
+            sudo apt-get install -y nodejs && \
+            npm ci --production && \
+            sudo npm install -g pm2 \
+          "
+
+      - name: Create environment file on VM
+        run: |
+          sshpass -p ${{ secrets.VM_PASSWORD }} ssh -o StrictHostKeyChecking=no ${{ secrets.VM_USERNAME }}@${{ secrets.VM_PUBLIC_IP }} "\
+            cd /home/${{ secrets.VM_USERNAME }}/node-backend && \
+            cat > .env << 'EOF'
+          NODE_ENV=production
+          PORT=5001
+          DATABASE_URL=postgresql://postgres:admin@gotrip-postgres.postgres.database.azure.com:5432/gotripdb
+          JWT_SECRET_KEY=aftabs_jwt_secret_key
+          SECRET_KEY=aftabs_secret_key
+          EOF"
+
+      - name: Run database migrations
+        run: |
+          sshpass -p ${{ secrets.VM_PASSWORD }} ssh -o StrictHostKeyChecking=no ${{ secrets.VM_USERNAME }}@${{ secrets.VM_PUBLIC_IP }} "\
+            cd /home/${{ secrets.VM_USERNAME }}/node-backend && \
+            export DATABASE_URL='postgresql://postgres:admin@gotrip-postgres.postgres.database.azure.com:5432/gotripdb' && \
+            export JWT_SECRET_KEY='aftabs_jwt_secret_key' && \
+            export SECRET_KEY='aftabs_secret_key' && \
+            npx sequelize-cli db:migrate \
+          "
+
+      - name: Deploy and Start App with PM2
+        run: |
+          sshpass -p ${{ secrets.VM_PASSWORD }} ssh -o StrictHostKeyChecking=no ${{ secrets.VM_USERNAME }}@${{ secrets.VM_PUBLIC_IP }} "\
+            cd /home/${{ secrets.VM_USERNAME }}/node-backend && \
+            pm2 delete node-backend || true && \
+            pm2 start src/index.js --name 'node-backend' --env production && \
+            pm2 save && \
+            pm2 startup \
+          "
+
+      - name: Check deployment status
+        run: |
+          sshpass -p ${{ secrets.VM_PASSWORD }} ssh -o StrictHostKeyChecking=no ${{ secrets.VM_USERNAME }}@${{ secrets.VM_PUBLIC_IP }} "\
+            pm2 status && \
+            curl -f http://localhost:5001 || echo 'App not responding yet' \
+          "
+
+# Required secrets:
+# VM_PUBLIC_IP: The public IP of your Azure VM (from Terraform output)
+# VM_USERNAME: The admin username for your VM (e.g., azureuser)
+# VM_PASSWORD: The admin password for your VM
+# DATABASE_URL: Your PostgreSQL connection string
+# JWT_SECRET_KEY: Your JWT secret key
+# SECRET_KEY: Your app secret key
+
+# Instructions:
+# 1. Add all required secrets to your GitHub repository
+# 2. The workflow runs on push to master and can be triggered manually
+# 3. PM2 will manage the Node.js process and restart it if it crashes
+# 4. The app will be accessible on port 5001 
