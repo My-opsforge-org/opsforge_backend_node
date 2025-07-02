@@ -18,7 +18,7 @@ module.exports = {
     dialect: 'postgres'
   },
   production: {
-    use_env_variable: 'DATABASE_URL',
+    url: 'postgresql://postgres:admin@gotrip-postgres.postgres.database.azure.com:5432/gotripdb',
     dialect: 'postgres',
     dialectOptions: {
       ssl: {
