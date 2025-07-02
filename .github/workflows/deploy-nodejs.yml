@@ -82,7 +82,7 @@ jobs:
             pm2 save && \
             pm2 startup || true \
           "
-
+      
       - name: Check deployment status
         run: |
           sshpass -p ${{ secrets.VM_PASSWORD }} ssh -o StrictHostKeyChecking=no ${{ secrets.VM_USERNAME }}@${{ secrets.VM_PUBLIC_IP }} "\
