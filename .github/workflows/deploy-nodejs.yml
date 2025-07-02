@@ -73,16 +73,6 @@ jobs:
           SECRET_KEY=aftabs_secret_key
           EOF"
 
-      - name: Run database migrations
-        run: |
-          sshpass -p ${{ secrets.VM_PASSWORD }} ssh -o StrictHostKeyChecking=no ${{ secrets.VM_USERNAME }}@${{ secrets.VM_PUBLIC_IP }} "\
-            cd /home/${{ secrets.VM_USERNAME }}/node-backend && \
-            export DATABASE_URL='postgresql://postgres:admin@gotrip-postgres.postgres.database.azure.com:5432/gotripdb' && \
-            export JWT_SECRET_KEY='aftabs_jwt_secret_key' && \
-            export SECRET_KEY='aftabs_secret_key' && \
-            npx sequelize-cli db:migrate \
-          "
-          
       - name: Deploy and Start App with PM2
         run: |
           sshpass -p ${{ secrets.VM_PASSWORD }} ssh -o StrictHostKeyChecking=no ${{ secrets.VM_USERNAME }}@${{ secrets.VM_PUBLIC_IP }} "\
