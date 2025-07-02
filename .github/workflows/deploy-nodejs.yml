@@ -80,7 +80,7 @@ jobs:
             pm2 delete node-backend || true && \
             pm2 start src/index.js --name 'node-backend' --env production && \
             pm2 save && \
-            pm2 startup \
+            pm2 startup || true \
           "
 
       - name: Check deployment status
