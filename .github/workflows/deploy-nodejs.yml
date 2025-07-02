@@ -77,7 +77,7 @@ jobs:
             export SECRET_KEY='aftabs_secret_key' && \
             npx sequelize-cli db:migrate \
           "
-
+          
       - name: Deploy and Start App with PM2
         run: |
           sshpass -p ${{ secrets.VM_PASSWORD }} ssh -o StrictHostKeyChecking=no ${{ secrets.VM_USERNAME }}@${{ secrets.VM_PUBLIC_IP }} "\
