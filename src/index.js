@@ -139,6 +139,9 @@ async function startServer() {
       console.warn('Database initialization completed with warnings');
     }
 
+    // Sync models to create tables if they do not exist
+    await sequelize.sync();
+
     // Start server
     httpServer.listen(PORT, () => {
       console.log(`Server is running on port ${PORT}`);
