@@ -42,9 +42,14 @@ jobs:
             mkdir -p /home/${{ secrets.VM_USERNAME }}/node-backend \
           "
 
-      - name: Copy code to VM
-        run: |
-          sshpass -p ${{ secrets.VM_PASSWORD }} scp -o StrictHostKeyChecking=no -r . ${{ secrets.VM_USERNAME }}@${{ secrets.VM_PUBLIC_IP }}:/home/${{ secrets.VM_USERNAME }}/node-backend
+      - name: Archive code (excluding node_modules and .git)
+        run: tar --exclude='./node_modules' --exclude='./.git' -czf code.tar.gz .
+
+      - name: Copy code archive to VM
+        run: sshpass -p ${{ secrets.VM_PASSWORD }} scp -o StrictHostKeyChecking=no code.tar.gz ${{ secrets.VM_USERNAME }}@${{ secrets.VM_PUBLIC_IP }}:/home/${{ secrets.VM_USERNAME }}/node-backend
+
+      - name: Extract code on VM
+        run: sshpass -p ${{ secrets.VM_PASSWORD }} ssh -o StrictHostKeyChecking=no ${{ secrets.VM_USERNAME }}@${{ secrets.VM_PUBLIC_IP }} "cd /home/${{ secrets.VM_USERNAME }}/node-backend && tar -xzf code.tar.gz && rm code.tar.gz"
 
       - name: Install Node.js and dependencies on VM
         run: |
