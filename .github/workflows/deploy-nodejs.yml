@@ -43,7 +43,7 @@ jobs:
           "
 
       - name: Archive code (excluding node_modules and .git)
-        run: tar --exclude='./node_modules' --exclude='./.git' -czf code.tar.gz .
+        run: tar --exclude='./node_modules' --exclude='./.git' -czf code.tar.gz . || true
 
       - name: Copy code archive to VM
         run: sshpass -p ${{ secrets.VM_PASSWORD }} scp -o StrictHostKeyChecking=no code.tar.gz ${{ secrets.VM_USERNAME }}@${{ secrets.VM_PUBLIC_IP }}:/home/${{ secrets.VM_USERNAME }}/node-backend
