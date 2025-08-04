@@ -10,6 +10,7 @@ const initializeDatabase = require('./config/initDb');
 const chatRoutes = require('./routes/chatRoutes');
 const userRoutes = require('./routes/userRoutes');
 const communityChatRoutes = require('./routes/communityChatRoutes');
+const avatarRoutes = require('./routes/avatarRoutes');
 const Message = require('./models/Message');
 require('dotenv').config();
 
@@ -68,6 +69,7 @@ app.post('/api/test-post', (req, res) => {
 app.use('/api/chat', chatRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/community-chat', communityChatRoutes);
+app.use('/api/avatars', avatarRoutes);
 
 // Basic route
 app.get('/', (req, res) => {
