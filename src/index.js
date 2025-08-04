@@ -23,7 +23,12 @@ const io = new Server(httpServer, {
 });
 
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: '*',
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true
+}));
 app.use(helmet());
 app.use(morgan('dev'));
 app.use(express.json());
@@ -53,6 +58,12 @@ app.get('/api/test-db', async (req, res) => {
   }
 });
 
+// Test POST endpoint
+app.post('/api/test-post', (req, res) => {
+  console.log('POST test endpoint hit:', req.body);
+  res.json({ message: 'POST request successful', data: req.body });
+});
+
 // Routes
 app.use('/api/chat', chatRoutes);
 app.use('/api/users', userRoutes);
@@ -66,13 +77,25 @@ app.get('/', (req, res) => {
 // Socket.IO authentication middleware
 io.use((socket, next) => {
   const token = socket.handshake.auth.token;
+  
   if (!token) {
     return next(new Error('Authentication error'));
   }
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET_KEY);
-    socket.user = decoded;
+    
+    // Extract user ID from sub field (JWT identity)
+    const userId = decoded.sub;
+    
+    if (!userId) {
+      return next(new Error('No user ID in token'));
+    }
+    
+    // Convert string ID to number for database
+    const numericUserId = parseInt(userId, 10);
+    
+    socket.user = { ...decoded, id: numericUserId };
     next();
   } catch (error) {
     return next(new Error('Authentication error'));
@@ -95,17 +118,26 @@ io.on('connection', (socket) => {
       const { roomId, receiverId, content } = data;
       const senderId = socket.user.id;
       
-      // Save message to database
-      const message = await Message.create({
+      if (!senderId) {
+        return;
+      }
+      
+      // Don't save to database here - HTTP API already saves it
+      // Just broadcast the message for real-time delivery
+      const messageData = {
+        id: Date.now().toString(), // Temporary ID for real-time
         sender_id: senderId,
         receiver_id: receiverId,
-        content
-      });
+        content: content,
+        is_read: false,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
 
       // Broadcast message to room
-      io.to(roomId).emit('receive_message', message);
+      io.to(roomId).emit('receive_message', messageData);
     } catch (error) {
-      console.error('Error sending message:', error);
+      console.error('Error broadcasting message:', error);
     }
   });
 

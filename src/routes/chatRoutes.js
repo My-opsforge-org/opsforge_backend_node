@@ -6,6 +6,9 @@ const { verifyToken } = require('../middleware/auth');
 // Apply authentication middleware to all routes
 router.use(verifyToken);
 
+// Get conversations (users the current user has chatted with)
+router.get('/conversations/:userId', chatController.getConversations);
+
 // Get chat history between two users (with pagination)
 router.get('/history/:userId/:otherUserId', chatController.getChatHistory);
 

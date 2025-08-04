@@ -3,6 +3,68 @@ const Message = require('../models/Message');
 const { Op } = require('sequelize');
 const User = require('../models/User');
 
+// Get conversations (users the current user has chatted with)
+const getConversations = async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    // Find all unique conversations for this user
+    const conversations = await Message.findAll({
+      where: {
+        [Op.or]: [
+          { sender_id: userId },
+          { receiver_id: userId }
+        ]
+      },
+      include: [
+        {
+          model: User,
+          as: 'sender',
+          attributes: ['id', 'name', 'email', 'avatarUrl']
+        },
+        {
+          model: User,
+          as: 'receiver',
+          attributes: ['id', 'name', 'email', 'avatarUrl']
+        }
+      ],
+      order: [['createdAt', 'DESC']]
+    });
+
+    // Group by conversation partner and get latest message
+    const conversationMap = new Map();
+    
+    conversations.forEach(message => {
+      const otherUserId = message.sender_id == userId ? message.receiver_id : message.sender_id;
+      const otherUser = message.sender_id == userId ? message.receiver : message.sender;
+      
+      if (!conversationMap.has(otherUserId)) {
+        conversationMap.set(otherUserId, {
+          id: otherUserId.toString(),
+          name: otherUser.name,
+          avatar: otherUser.avatarUrl || 'https://picsum.photos/200?random=' + otherUserId,
+          lastMessage: message.content,
+          timestamp: message.createdAt,
+          unreadCount: 0
+        });
+      }
+    });
+
+    const conversationList = Array.from(conversationMap.values());
+
+    return res.json({
+      success: true,
+      data: conversationList
+    });
+  } catch (error) {
+    console.error('Error getting conversations:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to get conversations'
+    });
+  }
+};
+
 // Get chat history between two users
 const getChatHistory = async (req, res) => {
   try {
@@ -128,73 +190,53 @@ const deleteMessage = async (req, res) => {
 const sendMessage = async (req, res) => {
   try {
     const { receiverId, content } = req.body;
-    
-    // Get user ID from JWT token
     const senderId = req.user.id;
-    
-    // console.log('Sending message:', { senderId, receiverId, content, user: req.user });
 
-    if (!content || !receiverId) {
+    if (!receiverId || !content) {
       return res.status(400).json({
-        message: 'Content and receiverId are required',
-        code: 'INVALID_REQUEST'
+        success: false,
+        error: 'Receiver ID and content are required'
       });
     }
 
-    // Validate receiverId is a number
-    if (isNaN(Number(receiverId))) {
-      return res.status(400).json({
-        message: 'Invalid receiverId format',
-        code: 'INVALID_RECEIVER_ID'
-      });
-    }
-
-    console.log('Looking for user with id:', receiverId);
-    const receiverExists = await User.findOne({
-      where: { id: Number(receiverId) }
-    });
-    console.log('Receiver found:', receiverExists);
-    if (!receiverExists) {
+    // Find the receiver user
+    const receiver = await User.findByPk(receiverId);
+    if (!receiver) {
       return res.status(404).json({
-        message: 'Receiver not found',
-        code: 'RECEIVER_NOT_FOUND'
+        success: false,
+        error: 'Receiver not found'
       });
     }
 
+    // Create the message
     const message = await Message.create({
-      sender_id: Number(senderId),
-      receiver_id: Number(receiverId),
+      sender_id: senderId,
+      receiver_id: receiverId,
       content
     });
 
-    console.log('Message created:', message.toJSON());
-
-    // Emit the message through Socket.IO if needed
-    if (req.app.get('io')) {
-      const roomId = [senderId, receiverId].sort().join('_');
-      req.app.get('io').to(roomId).emit('receive_message', message);
-    }
-
-    res.status(201).json(message);
-  } catch (error) {
-    console.error('Detailed error in sendMessage:', {
-      message: error.message,
-      stack: error.stack,
-      name: error.name,
-      sql: error.sql,
-      sqlMessage: error.sqlMessage,
-      user: req.user
+    return res.status(201).json({
+      success: true,
+      data: {
+        id: message.id,
+        text: message.content,
+        sender: 'me',
+        timestamp: message.createdAt,
+        isRead: message.is_read,
+        type: 'text'
+      }
     });
-    
-    res.status(500).json({ 
-      message: 'Error sending message',
-      code: 'SEND_MESSAGE_ERROR',
-      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+  } catch (error) {
+    console.error('Error sending message:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to send message'
     });
   }
 };
 
 module.exports = {
+  getConversations,
   getChatHistory,
   markAsRead,
   sendMessage,
