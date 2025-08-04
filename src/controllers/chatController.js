@@ -7,13 +7,14 @@ const User = require('../models/User');
 const getConversations = async (req, res) => {
   try {
     const { userId } = req.params;
+    const userIdInt = parseInt(userId, 10);
 
     // Find all unique conversations for this user
     const conversations = await Message.findAll({
       where: {
         [Op.or]: [
-          { sender_id: userId },
-          { receiver_id: userId }
+          { sender_id: userIdInt },
+          { receiver_id: userIdInt }
         ]
       },
       include: [
@@ -35,14 +36,19 @@ const getConversations = async (req, res) => {
     const conversationMap = new Map();
     
     conversations.forEach(message => {
-      const otherUserId = message.sender_id == userId ? message.receiver_id : message.sender_id;
-      const otherUser = message.sender_id == userId ? message.receiver : message.sender;
+      const otherUserId = message.sender_id === userIdInt ? message.receiver_id : message.sender_id;
+      const otherUser = message.sender_id === userIdInt ? message.receiver : message.sender;
+      
+      // Skip messages where otherUserId is null or undefined (community messages)
+      if (otherUserId === null || otherUserId === undefined) {
+        return;
+      }
       
       if (!conversationMap.has(otherUserId)) {
         conversationMap.set(otherUserId, {
           id: otherUserId.toString(),
-          name: otherUser.name,
-          avatar: otherUser.avatarUrl || 'https://picsum.photos/200?random=' + otherUserId,
+          name: otherUser?.name || 'Unknown User',
+          avatar: otherUser?.avatarUrl || 'https://picsum.photos/200?random=' + otherUserId,
           lastMessage: message.content,
           timestamp: message.createdAt,
           unreadCount: 0
@@ -52,10 +58,7 @@ const getConversations = async (req, res) => {
 
     const conversationList = Array.from(conversationMap.values());
 
-    return res.json({
-      success: true,
-      data: conversationList
-    });
+    return res.json(conversationList);
   } catch (error) {
     console.error('Error getting conversations:', error);
     return res.status(500).json({
@@ -219,11 +222,12 @@ const sendMessage = async (req, res) => {
       success: true,
       data: {
         id: message.id,
-        text: message.content,
-        sender: 'me',
-        timestamp: message.createdAt,
-        isRead: message.is_read,
-        type: 'text'
+        content: message.content,
+        sender_id: message.sender_id,
+        receiver_id: message.receiver_id,
+        is_read: message.is_read,
+        createdAt: message.createdAt,
+        updatedAt: message.updatedAt
       }
     });
   } catch (error) {
