@@ -9,6 +9,7 @@ const sequelize = require('./config/database');
 const initializeDatabase = require('./config/initDb');
 const chatRoutes = require('./routes/chatRoutes');
 const userRoutes = require('./routes/userRoutes');
+const communityRoutes = require('./routes/communityRoutes');
 const communityChatRoutes = require('./routes/communityChatRoutes');
 const avatarRoutes = require('./routes/avatarRoutes');
 const avatarChatRoutes = require('./routes/avatarChatRoutes');
@@ -70,6 +71,7 @@ app.post('/api/test-post', (req, res) => {
 // Routes
 app.use('/api/chat', chatRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/communities', communityRoutes);
 app.use('/api/community-chat', communityChatRoutes);
 app.use('/api/avatars', avatarRoutes);
 app.use('/api/avatar-chat', avatarChatRoutes);
