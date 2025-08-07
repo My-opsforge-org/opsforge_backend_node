@@ -110,6 +110,10 @@ io.use((socket, next) => {
   }
 });
 
+// Make io available to routes
+app.set('io', io);
+console.log('Socket.IO instance set on app:', !!io);
+
 // Socket.IO connection handling
 io.on('connection', (socket) => {
   console.log('User connected:', socket.id, 'User ID:', socket.user.id);
@@ -118,6 +122,14 @@ io.on('connection', (socket) => {
   socket.on('join_room', (roomId) => {
     socket.join(roomId);
     console.log(`User ${socket.id} joined room: ${roomId}`);
+  });
+
+  // Join a community chat room
+  socket.on('join_community_room', (communityId) => {
+    const roomId = `community_${communityId}`;
+    socket.join(roomId);
+    console.log(`User ${socket.id} joined community room: ${roomId}`);
+    console.log(`Total users in room ${roomId}:`, io.sockets.adapter.rooms.get(roomId)?.size || 0);
   });
 
   // Handle new messages

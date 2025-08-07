@@ -61,13 +61,36 @@ const sendCommunityMessage = async (req, res) => {
       content
     });
 
-    // Emit the message through Socket.IO if needed
+    // Fetch the message with sender information for the response
+    const messageWithSender = await Message.findByPk(message.id, {
+      include: [{ model: User, as: 'sender', attributes: ['id', 'name', 'avatarUrl'] }]
+    });
+
+            // Emit the message through Socket.IO if needed
+        console.log('Checking if Socket.IO is available...');
+        console.log('req.app:', req.app);
+        console.log('req.app.get("io"):', req.app.get('io'));
+        console.log('req.app.get("io") type:', typeof req.app.get('io'));
+    
     if (req.app.get('io')) {
       const roomId = `community_${communityId}`;
-      req.app.get('io').to(roomId).emit('receive_community_message', message);
+      console.log(`Emitting community message to room: ${roomId}`);
+      console.log(`Message data:`, JSON.stringify(messageWithSender, null, 2));
+      
+      // Get the Socket.IO instance
+      const io = req.app.get('io');
+      console.log('Socket.IO instance:', io);
+      console.log('Available rooms:', io.sockets.adapter.rooms);
+      
+      // Emit the message
+      io.to(roomId).emit('receive_community_message', messageWithSender);
+      console.log(`Message emitted to room: ${roomId}`);
+    } else {
+      console.log('Socket.IO not available in request');
     }
 
-    res.status(201).json(message);
+    // Return the message with sender information
+    res.status(201).json(messageWithSender);
   } catch (error) {
     console.error('Error sending community message:', error);
     res.status(500).json({ message: 'Error sending community message' });
