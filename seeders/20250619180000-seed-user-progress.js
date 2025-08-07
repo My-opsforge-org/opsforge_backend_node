@@ -25,9 +25,6 @@ module.exports = {
       }));
 
       await queryInterface.bulkInsert('user_progress', userProgressRecords);
-      console.log(`Created user progress records for ${users.length} existing users`);
-    } else {
-      console.log('No existing users found to seed user progress');
     }
   },
 

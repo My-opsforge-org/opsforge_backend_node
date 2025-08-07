@@ -1,5 +1,7 @@
 const Community = require('../models/Community');
 const User = require('../models/User');
+const Message = require('../models/Message');
+const { Op } = require('sequelize');
 
 // Get all communities
 const getAllCommunities = async (req, res) => {
@@ -136,9 +138,82 @@ const leaveCommunity = async (req, res) => {
   }
 };
 
+// Get user communities with last messages
+const getUserCommunitiesWithLastMessages = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    // Get communities where user is a member
+    const user = await User.findByPk(userId, {
+      include: [
+        {
+          model: Community,
+          as: 'communities_joined',
+          attributes: ['id', 'name', 'description', 'created_at'],
+          through: { attributes: [] }
+        }
+      ]
+    });
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Get last message for each community
+    const communitiesWithLastMessages = await Promise.all(
+      user.communities_joined.map(async (community) => {
+        // Get the last message for this community
+        const lastMessage = await Message.findOne({
+          where: {
+            community_id: community.id
+          },
+          order: [['createdAt', 'DESC']],
+          include: [
+            {
+              model: User,
+              as: 'sender',
+              attributes: ['id', 'name', 'avatarUrl']
+            }
+          ]
+        });
+
+        // Get unread count for this user in this community
+        const unreadCount = await Message.count({
+          where: {
+            community_id: community.id,
+            sender_id: { [Op.ne]: userId },
+            is_read: false
+          }
+        });
+
+        return {
+          id: community.id,
+          name: community.name,
+          description: community.description,
+          lastMessage: lastMessage ? lastMessage.content : '',
+          lastMessageTime: lastMessage ? lastMessage.createdAt : community.created_at,
+          unreadCount: unreadCount,
+          lastMessageSender: lastMessage?.sender?.name || null
+        };
+      })
+    );
+
+    // Sort by last message time (most recent first)
+    communitiesWithLastMessages.sort((a, b) => {
+      return new Date(b.lastMessageTime) - new Date(a.lastMessageTime);
+    });
+
+    res.json(communitiesWithLastMessages);
+  } catch (error) {
+    console.error('Error fetching user communities with last messages:', error);
+    res.status(500).json({ message: 'Error fetching user communities' });
+  }
+};
+
 module.exports = {
   getAllCommunities,
   getCommunityMembers,
   joinCommunity,
-  leaveCommunity
+  leaveCommunity,
+  getUserCommunitiesWithLastMessages
 };

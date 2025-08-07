@@ -2,7 +2,6 @@ const express = require('express');
 const router = express.Router();
 const { verifyToken } = require('../middleware/auth');
 const communityChatController = require('../controllers/communityChatController');
-// console.log('communityChatController:', communityChatController);
 
 // Get community chat history
 router.get('/:communityId/messages', verifyToken, communityChatController.getCommunityChatHistory);

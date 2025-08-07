@@ -64,7 +64,6 @@ app.get('/api/test-db', async (req, res) => {
 
 // Test POST endpoint
 app.post('/api/test-post', (req, res) => {
-  console.log('POST test endpoint hit:', req.body);
   res.json({ message: 'POST request successful', data: req.body });
 });
 
@@ -112,24 +111,19 @@ io.use((socket, next) => {
 
 // Make io available to routes
 app.set('io', io);
-console.log('Socket.IO instance set on app:', !!io);
 
 // Socket.IO connection handling
 io.on('connection', (socket) => {
-  console.log('User connected:', socket.id, 'User ID:', socket.user.id);
 
   // Join a chat room
   socket.on('join_room', (roomId) => {
     socket.join(roomId);
-    console.log(`User ${socket.id} joined room: ${roomId}`);
   });
 
   // Join a community chat room
   socket.on('join_community_room', (communityId) => {
     const roomId = `community_${communityId}`;
     socket.join(roomId);
-    console.log(`User ${socket.id} joined community room: ${roomId}`);
-    console.log(`Total users in room ${roomId}:`, io.sockets.adapter.rooms.get(roomId)?.size || 0);
   });
 
   // Handle new messages
@@ -163,7 +157,7 @@ io.on('connection', (socket) => {
 
   // Handle disconnection
   socket.on('disconnect', () => {
-    console.log('User disconnected:', socket.id);
+    // User disconnected
   });
 });
 
@@ -183,7 +177,6 @@ async function startServer() {
   try {
     // Test database connection
     await sequelize.authenticate();
-    console.log('Database connection established successfully.');
 
     // Initialize database
     const initialized = await initializeDatabase();
@@ -196,7 +189,7 @@ async function startServer() {
 
     // Start server
     httpServer.listen(PORT, () => {
-      console.log(`Server is running on port ${PORT}`);
+      // Server started successfully
     });
   } catch (error) {
     console.error('Failed to start server:', error);

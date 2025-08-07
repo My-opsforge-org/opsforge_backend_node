@@ -67,26 +67,14 @@ const sendCommunityMessage = async (req, res) => {
     });
 
             // Emit the message through Socket.IO if needed
-        console.log('Checking if Socket.IO is available...');
-        console.log('req.app:', req.app);
-        console.log('req.app.get("io"):', req.app.get('io'));
-        console.log('req.app.get("io") type:', typeof req.app.get('io'));
-    
     if (req.app.get('io')) {
       const roomId = `community_${communityId}`;
-      console.log(`Emitting community message to room: ${roomId}`);
-      console.log(`Message data:`, JSON.stringify(messageWithSender, null, 2));
       
       // Get the Socket.IO instance
       const io = req.app.get('io');
-      console.log('Socket.IO instance:', io);
-      console.log('Available rooms:', io.sockets.adapter.rooms);
       
       // Emit the message
       io.to(roomId).emit('receive_community_message', messageWithSender);
-      console.log(`Message emitted to room: ${roomId}`);
-    } else {
-      console.log('Socket.IO not available in request');
     }
 
     // Return the message with sender information

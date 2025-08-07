@@ -6,6 +6,9 @@ const communityController = require('../controllers/communityController');
 // Get all communities
 router.get('/', verifyToken, communityController.getAllCommunities);
 
+// Get user communities with last messages (for chat panel)
+router.get('/user/with-messages', verifyToken, communityController.getUserCommunitiesWithLastMessages);
+
 // Get community members
 router.get('/:communityId/members', verifyToken, communityController.getCommunityMembers);
 

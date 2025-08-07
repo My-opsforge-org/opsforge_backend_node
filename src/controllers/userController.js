@@ -4,8 +4,6 @@ const sequelize = require('../config/database');
 // Get all users
 const getAllUsers = async (req, res) => {
   try {
-    console.log('Attempting to fetch users...');
-    
     // Use raw query with Sequelize
     const users = await sequelize.query(
       `SELECT 
@@ -28,8 +26,6 @@ const getAllUsers = async (req, res) => {
         type: Sequelize.QueryTypes.SELECT
       }
     );
-
-    console.log(`Successfully fetched ${users.length} users`);
 
     // Format users data
     const formattedUsers = users.map(user => {

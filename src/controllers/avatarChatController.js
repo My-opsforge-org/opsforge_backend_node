@@ -254,13 +254,6 @@ IMPORTANT INSTRUCTIONS:
       ];
 
       try {
-        console.log('Attempting OpenAI API call with config:', {
-          model: config.openai.model,
-          maxTokens: config.openai.maxTokens,
-          temperature: character.temperature,
-          apiKeyExists: !!config.openai.apiKey
-        });
-        
         // Use responses API with character context
         const response = await openai.responses.create({
           model: 'gpt-4o-mini',
@@ -268,7 +261,6 @@ IMPORTANT INSTRUCTIONS:
           store: true
         });
 
-        console.log('OpenAI Responses API call successful');
         return response.output_text;
       } catch (openaiError) {
         console.error('OpenAI API error:', openaiError);
@@ -280,7 +272,6 @@ IMPORTANT INSTRUCTIONS:
         
         // Only use fallback for quota errors, otherwise throw the error
         if (openaiError.code === 'insufficient_quota' || openaiError.status === 429) {
-          console.log('Using fallback response due to quota limit');
           return `${userMessage.toLowerCase().includes('success') ? 'Success comes from persistence and never giving up.' : 'Every challenge is an opportunity for growth and learning.'} Stay focused on your goals and keep pushing forward.`;
         } else {
           throw new Error(`OpenAI API error: ${openaiError.message}`);
@@ -313,12 +304,7 @@ const sendMessageToCharacter = async (req, res) => {
       });
     }
 
-    // Debug: Check API key
-    console.log('API Key check:', {
-      hasApiKey: !!config.openai.apiKey,
-      apiKeyLength: config.openai.apiKey ? config.openai.apiKey.length : 0,
-      apiKeyPrefix: config.openai.apiKey ? config.openai.apiKey.substring(0, 7) : 'none'
-    });
+
 
     // Get character response
     const characterResponse = await getCharacterResponse(characterName, message, conversationHistory);
@@ -417,11 +403,6 @@ const getCharacterInfo = async (req, res) => {
 // Test API key endpoint
 const testApiKey = async (req, res) => {
   try {
-    console.log('Testing API key configuration...');
-    console.log('API Key exists:', !!config.openai.apiKey);
-    console.log('API Key length:', config.openai.apiKey ? config.openai.apiKey.length : 0);
-    console.log('API Key prefix:', config.openai.apiKey ? config.openai.apiKey.substring(0, 7) : 'none');
-    
     if (!config.openai.apiKey) {
       return res.status(400).json({
         success: false,
