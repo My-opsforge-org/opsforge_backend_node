@@ -12,6 +12,7 @@ const userRoutes = require('./routes/userRoutes');
 const communityChatRoutes = require('./routes/communityChatRoutes');
 const avatarRoutes = require('./routes/avatarRoutes');
 const avatarChatRoutes = require('./routes/avatarChatRoutes');
+const userProgressRoutes = require('./routes/userProgressRoutes');
 const Message = require('./models/Message');
 require('dotenv').config();
 
@@ -72,6 +73,7 @@ app.use('/api/users', userRoutes);
 app.use('/api/community-chat', communityChatRoutes);
 app.use('/api/avatars', avatarRoutes);
 app.use('/api/avatar-chat', avatarChatRoutes);
+app.use('/api/user-progress', userProgressRoutes);
 
 // Basic route
 app.get('/', (req, res) => {
