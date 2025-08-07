@@ -5,7 +5,6 @@ const User = require('../models/User');
 const getUserProgress = async (req, res) => {
   try {
     const userId = req.user.id;
-    
     let progress = await UserProgress.findOne({
       where: { userId },
       include: [{ model: User, attributes: ['name', 'email'] }]
@@ -18,17 +17,14 @@ const getUserProgress = async (req, res) => {
         level: 1,
         totalXP: 0,
         placesDiscovered: 0,
-        achievements: '[]',
-        completedLevels: '[]',
-        currentLevelProgress: '{}',
+        touristTrail: 0,
+        foodExplorer: 0,
+        culturalQuest: 0,
+        natureWanderer: 0,
+        entertainmentHunter: 0,
         lastPlayedAt: new Date()
       });
     }
-
-    // Parse JSON fields
-    const achievements = JSON.parse(progress.achievements || '[]');
-    const completedLevels = JSON.parse(progress.completedLevels || '[]');
-    const currentLevelProgress = JSON.parse(progress.currentLevelProgress || '{}');
 
     res.json({
       success: true,
@@ -38,9 +34,11 @@ const getUserProgress = async (req, res) => {
         level: progress.level,
         totalXP: progress.totalXP,
         placesDiscovered: progress.placesDiscovered,
-        achievements,
-        completedLevels,
-        currentLevelProgress,
+        touristTrail: progress.touristTrail,
+        foodExplorer: progress.foodExplorer,
+        culturalQuest: progress.culturalQuest,
+        natureWanderer: progress.natureWanderer,
+        entertainmentHunter: progress.entertainmentHunter,
         lastPlayedAt: progress.lastPlayedAt,
         user: progress.User
       }
@@ -59,11 +57,18 @@ const getUserProgress = async (req, res) => {
 const updateUserProgress = async (req, res) => {
   try {
     const userId = req.user.id;
-    const { level, totalXP, placesDiscovered, achievements, completedLevels, currentLevelProgress } = req.body;
+    const {
+      level,
+      totalXP,
+      placesDiscovered,
+      touristTrail,
+      foodExplorer,
+      culturalQuest,
+      natureWanderer,
+      entertainmentHunter
+    } = req.body;
 
-    let progress = await UserProgress.findOne({
-      where: { userId }
-    });
+    let progress = await UserProgress.findOne({ where: { userId } });
 
     if (!progress) {
       // Create new progress record
@@ -72,28 +77,27 @@ const updateUserProgress = async (req, res) => {
         level: level || 1,
         totalXP: totalXP || 0,
         placesDiscovered: placesDiscovered || 0,
-        achievements: JSON.stringify(achievements || []),
-        completedLevels: JSON.stringify(completedLevels || []),
-        currentLevelProgress: JSON.stringify(currentLevelProgress || {}),
+        touristTrail: touristTrail || 0,
+        foodExplorer: foodExplorer || 0,
+        culturalQuest: culturalQuest || 0,
+        natureWanderer: natureWanderer || 0,
+        entertainmentHunter: entertainmentHunter || 0,
         lastPlayedAt: new Date()
       });
     } else {
       // Update existing progress
       await progress.update({
-        level: level || progress.level,
-        totalXP: totalXP || progress.totalXP,
-        placesDiscovered: placesDiscovered || progress.placesDiscovered,
-        achievements: JSON.stringify(achievements || JSON.parse(progress.achievements || '[]')),
-        completedLevels: JSON.stringify(completedLevels || JSON.parse(progress.completedLevels || '[]')),
-        currentLevelProgress: JSON.stringify(currentLevelProgress || JSON.parse(progress.currentLevelProgress || '{}')),
+        level: level !== undefined ? level : progress.level,
+        totalXP: totalXP !== undefined ? totalXP : progress.totalXP,
+        placesDiscovered: placesDiscovered !== undefined ? placesDiscovered : progress.placesDiscovered,
+        touristTrail: touristTrail !== undefined ? touristTrail : progress.touristTrail,
+        foodExplorer: foodExplorer !== undefined ? foodExplorer : progress.foodExplorer,
+        culturalQuest: culturalQuest !== undefined ? culturalQuest : progress.culturalQuest,
+        natureWanderer: natureWanderer !== undefined ? natureWanderer : progress.natureWanderer,
+        entertainmentHunter: entertainmentHunter !== undefined ? entertainmentHunter : progress.entertainmentHunter,
         lastPlayedAt: new Date()
       });
     }
-
-    // Parse JSON fields for response
-    const achievementsParsed = JSON.parse(progress.achievements || '[]');
-    const completedLevelsParsed = JSON.parse(progress.completedLevels || '[]');
-    const currentLevelProgressParsed = JSON.parse(progress.currentLevelProgress || '{}');
 
     res.json({
       success: true,
@@ -103,9 +107,11 @@ const updateUserProgress = async (req, res) => {
         level: progress.level,
         totalXP: progress.totalXP,
         placesDiscovered: progress.placesDiscovered,
-        achievements: achievementsParsed,
-        completedLevels: completedLevelsParsed,
-        currentLevelProgress: currentLevelProgressParsed,
+        touristTrail: progress.touristTrail,
+        foodExplorer: progress.foodExplorer,
+        culturalQuest: progress.culturalQuest,
+        natureWanderer: progress.natureWanderer,
+        entertainmentHunter: progress.entertainmentHunter,
         lastPlayedAt: progress.lastPlayedAt
       }
     });
@@ -123,11 +129,9 @@ const updateUserProgress = async (req, res) => {
 const completeLevel = async (req, res) => {
   try {
     const userId = req.user.id;
-    const { levelId, xpReward, placesFound } = req.body;
+    const { level, xpGained } = req.body;
 
-    let progress = await UserProgress.findOne({
-      where: { userId }
-    });
+    let progress = await UserProgress.findOne({ where: { userId } });
 
     if (!progress) {
       return res.status(404).json({
@@ -136,38 +140,10 @@ const completeLevel = async (req, res) => {
       });
     }
 
-    // Parse existing data
-    const achievements = JSON.parse(progress.achievements || '[]');
-    const completedLevels = JSON.parse(progress.completedLevels || '[]');
-    const currentLevelProgress = JSON.parse(progress.currentLevelProgress || '{}');
-
-    // Update progress
-    const newTotalXP = progress.totalXP + (xpReward || 0);
-    const newPlacesDiscovered = progress.placesDiscovered + (placesFound || 0);
-    const newLevel = progress.level + 1;
-
-    // Add level to completed levels if not already there
-    if (!completedLevels.includes(levelId)) {
-      completedLevels.push(levelId);
-    }
-
-    // Check for achievements
-    const newAchievements = [...achievements];
-    if (newPlacesDiscovered >= 10 && !achievements.includes('Explorer')) {
-      newAchievements.push('Explorer');
-    }
-    if (newTotalXP >= 500 && !achievements.includes('Master Explorer')) {
-      newAchievements.push('Master Explorer');
-    }
-
-    // Update progress
+    // Update level and XP
     await progress.update({
-      level: newLevel,
-      totalXP: newTotalXP,
-      placesDiscovered: newPlacesDiscovered,
-      achievements: JSON.stringify(newAchievements),
-      completedLevels: JSON.stringify(completedLevels),
-      currentLevelProgress: JSON.stringify(currentLevelProgress),
+      level: level,
+      totalXP: progress.totalXP + (xpGained || 0),
       lastPlayedAt: new Date()
     });
 
@@ -176,15 +152,9 @@ const completeLevel = async (req, res) => {
       data: {
         id: progress.id,
         userId: progress.userId,
-        level: newLevel,
-        totalXP: newTotalXP,
-        placesDiscovered: newPlacesDiscovered,
-        achievements: newAchievements,
-        completedLevels,
-        currentLevelProgress,
-        lastPlayedAt: progress.lastPlayedAt,
-        levelCompleted: true,
-        xpEarned: xpReward || 0
+        level: progress.level,
+        totalXP: progress.totalXP,
+        lastPlayedAt: progress.lastPlayedAt
       }
     });
   } catch (error) {
@@ -201,11 +171,16 @@ const completeLevel = async (req, res) => {
 const updateLevelProgress = async (req, res) => {
   try {
     const userId = req.user.id;
-    const { levelId, currentProgress } = req.body;
+    const { 
+      placesDiscovered, 
+      touristTrail, 
+      foodExplorer, 
+      culturalQuest, 
+      natureWanderer, 
+      entertainmentHunter 
+    } = req.body;
 
-    let progress = await UserProgress.findOne({
-      where: { userId }
-    });
+    let progress = await UserProgress.findOne({ where: { userId } });
 
     if (!progress) {
       return res.status(404).json({
@@ -214,24 +189,31 @@ const updateLevelProgress = async (req, res) => {
       });
     }
 
-    // Parse existing progress
-    const currentLevelProgress = JSON.parse(progress.currentLevelProgress || '{}');
-    
-    // Update progress for specific level
-    currentLevelProgress[levelId] = currentProgress;
-
-    // Update in database
+    // Update specific progress fields
     await progress.update({
-      currentLevelProgress: JSON.stringify(currentLevelProgress),
+      placesDiscovered: placesDiscovered !== undefined ? placesDiscovered : progress.placesDiscovered,
+      touristTrail: touristTrail !== undefined ? touristTrail : progress.touristTrail,
+      foodExplorer: foodExplorer !== undefined ? foodExplorer : progress.foodExplorer,
+      culturalQuest: culturalQuest !== undefined ? culturalQuest : progress.culturalQuest,
+      natureWanderer: natureWanderer !== undefined ? natureWanderer : progress.natureWanderer,
+      entertainmentHunter: entertainmentHunter !== undefined ? entertainmentHunter : progress.entertainmentHunter,
       lastPlayedAt: new Date()
     });
 
     res.json({
       success: true,
       data: {
-        levelId,
-        currentProgress,
-        message: 'Level progress updated successfully'
+        id: progress.id,
+        userId: progress.userId,
+        level: progress.level,
+        totalXP: progress.totalXP,
+        placesDiscovered: progress.placesDiscovered,
+        touristTrail: progress.touristTrail,
+        foodExplorer: progress.foodExplorer,
+        culturalQuest: progress.culturalQuest,
+        natureWanderer: progress.natureWanderer,
+        entertainmentHunter: progress.entertainmentHunter,
+        lastPlayedAt: progress.lastPlayedAt
       }
     });
   } catch (error) {
@@ -248,25 +230,26 @@ const updateLevelProgress = async (req, res) => {
 const getLeaderboard = async (req, res) => {
   try {
     const leaderboard = await UserProgress.findAll({
-      include: [{ model: User, attributes: ['name', 'avatarUrl'] }],
-      order: [['totalXP', 'DESC'], ['placesDiscovered', 'DESC']],
-      limit: 10
+      include: [{ model: User, attributes: ['name', 'email'] }],
+      order: [
+        ['totalXP', 'DESC'],
+        ['level', 'DESC']
+      ],
+      limit: 50
     });
 
-    const leaderboardData = leaderboard.map((entry, index) => ({
+    const formattedLeaderboard = leaderboard.map((entry, index) => ({
       rank: index + 1,
       userId: entry.userId,
       name: entry.User.name,
-      avatarUrl: entry.User.avatarUrl,
-      totalXP: entry.totalXP,
-      placesDiscovered: entry.placesDiscovered,
       level: entry.level,
-      achievements: JSON.parse(entry.achievements || '[]')
+      totalXP: entry.totalXP,
+      placesDiscovered: entry.placesDiscovered
     }));
 
     res.json({
       success: true,
-      data: leaderboardData
+      data: formattedLeaderboard
     });
   } catch (error) {
     console.error('Error getting leaderboard:', error);

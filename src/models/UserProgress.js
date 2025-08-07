@@ -24,43 +24,61 @@ const UserProgress = sequelize.define('UserProgress', {
   totalXP: {
     type: DataTypes.INTEGER,
     allowNull: false,
-    defaultValue: 0
+    defaultValue: 0,
+    field: 'total_xp'
   },
   placesDiscovered: {
     type: DataTypes.INTEGER,
     allowNull: false,
-    defaultValue: 0
+    defaultValue: 0,
+    field: 'places_discovered'
   },
-  achievements: {
-    type: DataTypes.TEXT, // Store as JSON string
-    allowNull: true,
-    defaultValue: '[]'
+  touristTrail: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    defaultValue: 0,
+    field: 'tourist_trail'
   },
-  completedLevels: {
-    type: DataTypes.TEXT, // Store as JSON string of completed level IDs
-    allowNull: true,
-    defaultValue: '[]'
+  foodExplorer: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    defaultValue: 0,
+    field: 'food_explorer'
   },
-  currentLevelProgress: {
-    type: DataTypes.TEXT, // Store as JSON string of current level progress
-    allowNull: true,
-    defaultValue: '{}'
+  culturalQuest: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    defaultValue: 0,
+    field: 'cultural_quest'
+  },
+  natureWanderer: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    defaultValue: 0,
+    field: 'nature_wanderer'
+  },
+  entertainmentHunter: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    defaultValue: 0,
+    field: 'entertainment_hunter'
   },
   lastPlayedAt: {
     type: DataTypes.DATE,
-    allowNull: true
+    allowNull: true,
+    field: 'last_played_at'
   },
   createdAt: {
     type: DataTypes.DATE,
     allowNull: false,
     defaultValue: DataTypes.NOW,
-    field: 'createdAt'
+    field: 'created_at'
   },
   updatedAt: {
     type: DataTypes.DATE,
     allowNull: false,
     defaultValue: DataTypes.NOW,
-    field: 'updatedAt'
+    field: 'updated_at'
   }
 }, {
   tableName: 'user_progress',

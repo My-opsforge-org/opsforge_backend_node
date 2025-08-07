@@ -34,20 +34,30 @@ module.exports = {
         allowNull: false,
         defaultValue: 0
       },
-      achievements: {
-        type: Sequelize.TEXT,
-        allowNull: true,
-        defaultValue: '[]'
+      tourist_trail: {
+        type: Sequelize.INTEGER,
+        allowNull: false,
+        defaultValue: 0
       },
-      completed_levels: {
-        type: Sequelize.TEXT,
-        allowNull: true,
-        defaultValue: '[]'
+      food_explorer: {
+        type: Sequelize.INTEGER,
+        allowNull: false,
+        defaultValue: 0
       },
-      current_level_progress: {
-        type: Sequelize.TEXT,
-        allowNull: true,
-        defaultValue: '{}'
+      cultural_quest: {
+        type: Sequelize.INTEGER,
+        allowNull: false,
+        defaultValue: 0
+      },
+      nature_wanderer: {
+        type: Sequelize.INTEGER,
+        allowNull: false,
+        defaultValue: 0
+      },
+      entertainment_hunter: {
+        type: Sequelize.INTEGER,
+        allowNull: false,
+        defaultValue: 0
       },
       last_played_at: {
         type: Sequelize.DATE,
