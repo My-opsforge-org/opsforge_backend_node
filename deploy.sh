@@ -54,7 +54,7 @@ sshpass -p "$VM_PASSWORD" ssh -o StrictHostKeyChecking=no "$VM_USERNAME@$VM_PUBL
     cd /home/$VM_USERNAME/node-backend &&
     cat > .env << 'EOF'
 NODE_ENV=production
-PORT=5001
+PORT=5002
 POSTGRES_HOST=$POSTGRES_HOST
 POSTGRES_PORT=$POSTGRES_PORT
 POSTGRES_DB=$POSTGRES_DB
@@ -89,10 +89,10 @@ sshpass -p "$VM_PASSWORD" ssh -o StrictHostKeyChecking=no "$VM_USERNAME@$VM_PUBL
 echo "✅ Checking deployment status..."
 sshpass -p "$VM_PASSWORD" ssh -o StrictHostKeyChecking=no "$VM_USERNAME@$VM_PUBLIC_IP" "
     pm2 status &&
-    curl -f http://localhost:5001 || echo 'App not responding yet'
+    curl -f http://localhost:5002 || echo 'App not responding yet'
 "
 
 echo "🎉 Deployment completed!"
 echo "📊 Check PM2 status: ssh $VM_USERNAME@$VM_PUBLIC_IP 'pm2 status'"
 echo "📝 Check logs: ssh $VM_USERNAME@$VM_PUBLIC_IP 'pm2 logs node-backend'"
-echo "🌐 App URL: http://$VM_PUBLIC_IP:5001" 
+echo "🌐 App URL: http://$VM_PUBLIC_IP:5002" 

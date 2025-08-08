@@ -96,7 +96,7 @@ jobs:
             cd /home/${{ secrets.VM_USERNAME }}/node-backend && \
             cat > .env << 'EOF'
           NODE_ENV=production
-          PORT=5001
+          PORT=5002
           
           # Database Configuration
           POSTGRES_DB=gotripdb
@@ -145,7 +145,7 @@ jobs:
         run: |
           sshpass -p ${{ secrets.VM_PASSWORD }} ssh -o StrictHostKeyChecking=no ${{ secrets.VM_USERNAME }}@${{ secrets.VM_PUBLIC_IP }} "\
             pm2 status && \
-            curl -f http://localhost:5001 || echo 'App not responding yet' \
+            curl -f http://localhost:5002 || echo 'App not responding yet' \
           "
 
 # Required secrets:
@@ -166,5 +166,5 @@ jobs:
 # 1. Add all required secrets to your GitHub repository
 # 2. The workflow runs on push to master and can be triggered manually
 # 3. PM2 will manage the Node.js process and restart it if it crashes
-# 4. The app will be accessible on port 5001
+# 4. The app will be accessible on port 5002
 # 5. All environment variables are automatically configured on the VM
