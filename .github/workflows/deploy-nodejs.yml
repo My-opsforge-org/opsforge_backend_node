@@ -36,7 +36,7 @@ jobs:
           
           # Client Configuration
           CLIENT_URL: http://localhost:3000
-          CORS_ORIGIN: http://localhost:3000,http://your-frontend-domain.com
+          CORS_ORIGIN: http://localhost:3000,http://4.205.220.45,http://your-frontend-domain.com
           
           # Security Keys
           SECRET_KEY: ${{ secrets.SECRET_KEY || 'aftabs_secret_key' }}
@@ -108,7 +108,7 @@ jobs:
           
           # Client Configuration
           CLIENT_URL=http://localhost:3000
-          CORS_ORIGIN=http://localhost:3000,http://your-frontend-domain.com
+          CORS_ORIGIN=http://localhost:3000,http://4.205.220.45,http://your-frontend-domain.com
           
           # Security Keys
           SECRET_KEY=${{ secrets.SECRET_KEY || 'aftabs_secret_key' }}

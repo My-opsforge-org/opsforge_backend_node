@@ -14,6 +14,20 @@ if [ -z "$VM_PUBLIC_IP" ] || [ -z "$VM_USERNAME" ] || [ -z "$VM_PASSWORD" ]; the
     exit 1
 fi
 
+# Test SSH connection first
+echo "🔍 Testing SSH connection to VM..."
+if ! sshpass -p "$VM_PASSWORD" ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -o ServerAliveInterval=30 -o ServerAliveCountMax=3 "$VM_USERNAME@$VM_PUBLIC_IP" "echo 'SSH connection successful'" 2>/dev/null; then
+    echo "❌ SSH connection failed!"
+    echo "Please check:"
+    echo "1. VM is running and accessible"
+    echo "2. IP address is correct: $VM_PUBLIC_IP"
+    echo "3. Username and password are correct"
+    echo "4. SSH service is running on VM"
+    echo "5. Firewall allows SSH connections (port 22)"
+    exit 1
+fi
+echo "✅ SSH connection successful!"
+
 # Install dependencies
 echo "📦 Installing dependencies..."
 npm ci
@@ -29,18 +43,18 @@ mkdir -p logs
 echo "🖥️  Deploying to VM..."
 
 # Clean and create directory on VM
-sshpass -p "$VM_PASSWORD" ssh -o StrictHostKeyChecking=no "$VM_USERNAME@$VM_PUBLIC_IP" "
+sshpass -p "$VM_PASSWORD" ssh -o StrictHostKeyChecking=no -o ConnectTimeout=30 -o ServerAliveInterval=60 -o ServerAliveCountMax=3 "$VM_USERNAME@$VM_PUBLIC_IP" "
     rm -rf /home/$VM_USERNAME/node-backend &&
     mkdir -p /home/$VM_USERNAME/node-backend
 "
 
 # Copy code to VM
 echo "📁 Copying code to VM..."
-sshpass -p "$VM_PASSWORD" scp -o StrictHostKeyChecking=no -r . "$VM_USERNAME@$VM_PUBLIC_IP:/home/$VM_USERNAME/node-backend"
+sshpass -p "$VM_PASSWORD" scp -o StrictHostKeyChecking=no -o ConnectTimeout=30 -o ServerAliveInterval=60 -o ServerAliveCountMax=3 -r . "$VM_USERNAME@$VM_PUBLIC_IP:/home/$VM_USERNAME/node-backend"
 
 # Install Node.js and dependencies on VM
 echo "🔧 Installing Node.js and dependencies on VM..."
-sshpass -p "$VM_PASSWORD" ssh -o StrictHostKeyChecking=no "$VM_USERNAME@$VM_PUBLIC_IP" "
+sshpass -p "$VM_PASSWORD" ssh -o StrictHostKeyChecking=no -o ConnectTimeout=30 -o ServerAliveInterval=60 -o ServerAliveCountMax=3 "$VM_USERNAME@$VM_PUBLIC_IP" "
     cd /home/$VM_USERNAME/node-backend &&
     curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash - &&
     sudo apt-get install -y nodejs &&
@@ -50,7 +64,7 @@ sshpass -p "$VM_PASSWORD" ssh -o StrictHostKeyChecking=no "$VM_USERNAME@$VM_PUBL
 
 # Create environment file on VM
 echo "⚙️  Creating environment file on VM..."
-sshpass -p "$VM_PASSWORD" ssh -o StrictHostKeyChecking=no "$VM_USERNAME@$VM_PUBLIC_IP" "
+sshpass -p "$VM_PASSWORD" ssh -o StrictHostKeyChecking=no -o ConnectTimeout=30 -o ServerAliveInterval=60 -o ServerAliveCountMax=3 "$VM_USERNAME@$VM_PUBLIC_IP" "
     cd /home/$VM_USERNAME/node-backend &&
     cat > .env << 'EOF'
 NODE_ENV=production
@@ -61,11 +75,12 @@ POSTGRES_DB=$POSTGRES_DB
 POSTGRES_USER=$POSTGRES_USER
 POSTGRES_PASSWORD=$POSTGRES_PASSWORD
 JWT_SECRET_KEY=$JWT_SECRET_KEY
+CORS_ORIGIN=http://localhost:3000,http://4.205.220.45,http://your-frontend-domain.com
 EOF"
 
 # Run database migrations
 echo "🗄️  Running database migrations..."
-sshpass -p "$VM_PASSWORD" ssh -o StrictHostKeyChecking=no "$VM_USERNAME@$VM_PUBLIC_IP" "
+sshpass -p "$VM_PASSWORD" ssh -o StrictHostKeyChecking=no -o ConnectTimeout=30 -o ServerAliveInterval=60 -o ServerAliveCountMax=3 "$VM_USERNAME@$VM_PUBLIC_IP" "
     cd /home/$VM_USERNAME/node-backend &&
     export POSTGRES_HOST='$POSTGRES_HOST' &&
     export POSTGRES_PORT='$POSTGRES_PORT' &&
@@ -77,7 +92,7 @@ sshpass -p "$VM_PASSWORD" ssh -o StrictHostKeyChecking=no "$VM_USERNAME@$VM_PUBL
 
 # Start application with PM2
 echo "🚀 Starting application with PM2..."
-sshpass -p "$VM_PASSWORD" ssh -o StrictHostKeyChecking=no "$VM_USERNAME@$VM_PUBLIC_IP" "
+sshpass -p "$VM_PASSWORD" ssh -o StrictHostKeyChecking=no -o ConnectTimeout=30 -o ServerAliveInterval=60 -o ServerAliveCountMax=3 "$VM_USERNAME@$VM_PUBLIC_IP" "
     cd /home/$VM_USERNAME/node-backend &&
     pm2 delete node-backend || true &&
     pm2 start ecosystem.config.js --env production &&
@@ -87,7 +102,7 @@ sshpass -p "$VM_PASSWORD" ssh -o StrictHostKeyChecking=no "$VM_USERNAME@$VM_PUBL
 
 # Check deployment status
 echo "✅ Checking deployment status..."
-sshpass -p "$VM_PASSWORD" ssh -o StrictHostKeyChecking=no "$VM_USERNAME@$VM_PUBLIC_IP" "
+sshpass -p "$VM_PASSWORD" ssh -o StrictHostKeyChecking=no -o ConnectTimeout=30 -o ServerAliveInterval=60 -o ServerAliveCountMax=3 "$VM_USERNAME@$VM_PUBLIC_IP" "
     pm2 status &&
     curl -f http://localhost:5002 || echo 'App not responding yet'
 "
