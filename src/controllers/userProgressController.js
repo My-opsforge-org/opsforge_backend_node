@@ -4,16 +4,16 @@ const User = require('../models/User');
 // Get user progress
 const getUserProgress = async (req, res) => {
   try {
-    const userId = req.user.id;
+    const userId = req.userId;
     let progress = await UserProgress.findOne({
-      where: { userId },
+      where: { userId: userId },
       include: [{ model: User, attributes: ['name', 'email'] }]
     });
 
     if (!progress) {
       // Create default progress for new user
       progress = await UserProgress.create({
-        userId,
+        userId: userId,
         level: 1,
         totalXP: 0,
         placesDiscovered: 0,
@@ -56,7 +56,7 @@ const getUserProgress = async (req, res) => {
 // Update user progress
 const updateUserProgress = async (req, res) => {
   try {
-    const userId = req.user.id;
+    const userId = req.userId;
     const {
       level,
       totalXP,
@@ -68,12 +68,12 @@ const updateUserProgress = async (req, res) => {
       entertainmentHunter
     } = req.body;
 
-    let progress = await UserProgress.findOne({ where: { userId } });
+    let progress = await UserProgress.findOne({ where: { userId: userId } });
 
     if (!progress) {
       // Create new progress record
       progress = await UserProgress.create({
-        userId,
+        userId: userId,
         level: level || 1,
         totalXP: totalXP || 0,
         placesDiscovered: placesDiscovered || 0,
@@ -128,10 +128,10 @@ const updateUserProgress = async (req, res) => {
 // Complete a level
 const completeLevel = async (req, res) => {
   try {
-    const userId = req.user.id;
+    const userId = req.userId;
     const { level, xpGained } = req.body;
 
-    let progress = await UserProgress.findOne({ where: { userId } });
+    let progress = await UserProgress.findOne({ where: { userId: userId } });
 
     if (!progress) {
       return res.status(404).json({
@@ -170,7 +170,7 @@ const completeLevel = async (req, res) => {
 // Update current level progress
 const updateLevelProgress = async (req, res) => {
   try {
-    const userId = req.user.id;
+    const userId = req.userId;
     const { 
       placesDiscovered, 
       touristTrail, 
@@ -180,7 +180,7 @@ const updateLevelProgress = async (req, res) => {
       entertainmentHunter 
     } = req.body;
 
-    let progress = await UserProgress.findOne({ where: { userId } });
+    let progress = await UserProgress.findOne({ where: { userId: userId } });
 
     if (!progress) {
       return res.status(404).json({

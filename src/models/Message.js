@@ -1,12 +1,10 @@
 const { DataTypes } = require('sequelize');
 const sequelize = require('../config/database');
-const User = require('./User');
-const Community = require('./Community');
 
 const Message = sequelize.define('Message', {
   id: {
-    type: DataTypes.UUID,
-    defaultValue: DataTypes.UUIDV4,
+    type: DataTypes.INTEGER,
+    autoIncrement: true,
     primaryKey: true
   },
   sender_id: {
@@ -43,12 +41,8 @@ const Message = sequelize.define('Message', {
   }
 }, {
   timestamps: true,
-  tableName: 'messages',
-  underscored: true
+  tableName: 'message',
+  underscored: false // Changed to false to match database schema
 });
-
-Message.belongsTo(User, { foreignKey: 'sender_id', as: 'sender' });
-Message.belongsTo(User, { foreignKey: 'receiver_id', as: 'receiver' });
-Message.belongsTo(Community, { foreignKey: 'community_id', as: 'community' });
 
 module.exports = Message; 

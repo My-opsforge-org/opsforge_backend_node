@@ -195,6 +195,8 @@ const sendMessage = async (req, res) => {
     const { receiverId, content } = req.body;
     const senderId = req.user.id;
 
+    console.log(`HTTP sendMessage: User ${senderId} sending to ${receiverId}: ${content}`);
+
     if (!receiverId || !content) {
       return res.status(400).json({
         success: false,
@@ -217,6 +219,32 @@ const sendMessage = async (req, res) => {
       receiver_id: receiverId,
       content
     });
+
+    // Emit to receiver in realtime if socket is available
+    try {
+      const io = req.app.get('io');
+      if (io) {
+        console.log('Emitting via HTTP endpoint to room:', `user_${receiverId}`);
+        io.to(`user_${receiverId}`).emit('private_message', {
+          id: message.id,
+          sender_id: senderId,
+          receiver_id: receiverId,
+          content: message.content,
+          created_at: message.created_at
+        });
+        io.to(`user_${receiverId}`).emit('receive_private_message', {
+          id: message.id,
+          sender_id: senderId,
+          receiver_id: receiverId,
+          content: message.content,
+          created_at: message.created_at
+        });
+      } else {
+        console.log('Socket.IO not available in HTTP endpoint');
+      }
+    } catch (e) {
+      console.error('Socket emission error in HTTP endpoint:', e);
+    }
 
     return res.status(201).json({
       success: true,

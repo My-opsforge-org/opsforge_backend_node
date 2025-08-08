@@ -1,12 +1,11 @@
 const jwt = require('jsonwebtoken');
-require('dotenv').config();
-const sequelize = require('../config/database');
+const { User, TokenBlocklist } = require('../models');
 
-// Verify token and check blocklist
+// Verify JWT token
 const verifyToken = async (req, res, next) => {
   try {
-    // Get token from header
     const authHeader = req.headers.authorization;
+    
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return res.status(401).json({
         message: 'No token provided',
@@ -16,30 +15,35 @@ const verifyToken = async (req, res, next) => {
 
     const token = authHeader.split(' ')[1];
 
-    // First verify the token to ensure it's valid
-    const verified = jwt.verify(token, process.env.JWT_SECRET_KEY);
+    // Verify the token
+    const decoded = jwt.verify(token, process.env.JWT_SECRET_KEY);
     
-    // Check if token is in blocklist using the jti
-    const [blockedToken] = await sequelize.query(
-      'SELECT * FROM token_blocklist WHERE jti = :jti',
-      {
-        replacements: { jti: verified.jti },
-        type: sequelize.QueryTypes.SELECT
-      }
-    );
+    // Check if token is in blocklist (only if jti exists)
+    if (decoded.jti) {
+      const blockedToken = await TokenBlocklist.findOne({
+        where: { jti: decoded.jti }
+      });
 
-    if (blockedToken) {
+      if (blockedToken) {
+        return res.status(401).json({
+          message: 'Token has been invalidated',
+          code: 'TOKEN_INVALIDATED'
+        });
+      }
+    }
+
+    // Get user from database
+    const user = await User.findByPk(decoded.sub);
+    if (!user) {
       return res.status(401).json({
-        message: 'Token has been invalidated',
-        code: 'TOKEN_INVALIDATED'
+        message: 'User not found',
+        code: 'USER_NOT_FOUND'
       });
     }
 
     // Add user info to request
-    req.user = {
-      id: verified.sub, // Use sub as the user ID
-      ...verified
-    };
+    req.user = user;
+    req.userId = user.id;
     next();
   } catch (error) {
     if (error.name === 'JsonWebTokenError') {
@@ -62,46 +66,42 @@ const verifyToken = async (req, res, next) => {
   }
 };
 
-// Add token to blocklist
-const addToBlocklist = async (token) => {
+// Optional authentication (for routes that can work with or without auth)
+const optionalAuth = async (req, res, next) => {
   try {
-    await sequelize.query(
-      'INSERT INTO token_blocklist (token, created_at) VALUES (:token, NOW())',
-      {
-        replacements: { token },
-        type: sequelize.QueryTypes.INSERT
-      }
-    );
-    return true;
-  } catch (error) {
-    console.error('Error adding token to blocklist:', error);
-    return false;
-  }
-};
-
-// Optional: Middleware to check if user has specific role
-const checkRole = (roles) => {
-  return (req, res, next) => {
-    if (!req.user) {
-      return res.status(401).json({ 
-        message: 'Authentication required',
-        code: 'AUTH_REQUIRED'
-      });
+    const authHeader = req.headers.authorization;
+    
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return next();
     }
 
-    if (!roles.includes(req.user.role)) {
-      return res.status(403).json({ 
-        message: 'Insufficient permissions',
-        code: 'INSUFFICIENT_PERMISSIONS'
-      });
+    const token = authHeader.split(' ')[1];
+    const decoded = jwt.verify(token, process.env.JWT_SECRET_KEY);
+    
+    // Check if token is in blocklist
+    const blockedToken = await TokenBlocklist.findOne({
+      where: { jti: decoded.jti }
+    });
+
+    if (blockedToken) {
+      return next();
     }
 
+    // Get user from database
+    const user = await User.findByPk(decoded.sub);
+    if (user) {
+      req.user = user;
+      req.userId = user.id;
+    }
+    
     next();
-  };
+  } catch (error) {
+    // If token is invalid, just continue without authentication
+    next();
+  }
 };
 
 module.exports = {
   verifyToken,
-  addToBlocklist,
-  checkRole
+  optionalAuth
 }; 

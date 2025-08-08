@@ -1,6 +1,5 @@
 const { DataTypes } = require('sequelize');
 const sequelize = require('../config/database');
-const User = require('./User');
 
 const Community = sequelize.define('Community', {
   id: {
@@ -17,31 +16,42 @@ const Community = sequelize.define('Community', {
     type: DataTypes.TEXT,
     allowNull: true
   },
-  created_at: {
+  createdAt: {
     type: DataTypes.DATE,
     allowNull: false,
-    defaultValue: DataTypes.NOW
+    defaultValue: DataTypes.NOW,
+    field: 'created_at'
+  },
+  updatedAt: {
+    type: DataTypes.DATE,
+    allowNull: false,
+    defaultValue: DataTypes.NOW,
+    field: 'updated_at'
   }
 }, {
   tableName: 'community',
-  underscored: true,
-  timestamps: false
+  underscored: true
 });
 
-// Many-to-many relationship with User (members)
-Community.belongsToMany(User, {
-  through: 'community_members',
-  foreignKey: 'community_id',
-  otherKey: 'user_id',
-  as: 'members',
-  timestamps: false
-});
-User.belongsToMany(Community, {
-  through: 'community_members',
-  foreignKey: 'user_id',
-  otherKey: 'community_id',
-  as: 'communities_joined',
-  timestamps: false
-});
+// Instance methods
+Community.prototype.toJSON = function(includeMembers = false) {
+  const values = Object.assign({}, this.get());
+  
+  // Add computed fields
+  values.members_count = this.members ? this.members.length : 0;
+  values.posts_count = this.posts ? this.posts.length : 0;
+  
+  if (includeMembers && this.members) {
+    values.members = this.members.map(member => member.id);
+  }
+  
+  return values;
+};
+
+Community.prototype.isMember = function(userId) {
+  if (!this.members) return false;
+  const userIdInt = parseInt(userId);
+  return this.members.some(member => member.id === userIdInt);
+};
 
 module.exports = Community; 

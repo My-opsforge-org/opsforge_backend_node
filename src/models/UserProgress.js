@@ -85,8 +85,4 @@ const UserProgress = sequelize.define('UserProgress', {
   underscored: true
 });
 
-// Association with User model
-UserProgress.belongsTo(User, { foreignKey: 'userId' });
-User.hasOne(UserProgress, { foreignKey: 'userId' });
-
 module.exports = UserProgress; 

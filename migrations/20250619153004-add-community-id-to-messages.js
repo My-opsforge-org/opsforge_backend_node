@@ -1,6 +1,8 @@
 module.exports = {
   up: async (queryInterface, Sequelize) => {
-    await queryInterface.addColumn('messages', 'community_id', {
+    const tables = await queryInterface.showAllTables();
+    const targetTable = tables.includes('messages') ? 'messages' : (tables.includes('message') ? 'message' : 'messages');
+    await queryInterface.addColumn(targetTable, 'community_id', {
       type: Sequelize.INTEGER,
       allowNull: true,
       references: {
@@ -9,7 +11,9 @@ module.exports = {
       }
     });
   },
-  down: async (queryInterface, Sequelize) => {
-    await queryInterface.removeColumn('messages', 'community_id');
+  down: async (queryInterface) => {
+    const tables = await queryInterface.showAllTables();
+    const targetTable = tables.includes('messages') ? 'messages' : (tables.includes('message') ? 'message' : 'messages');
+    await queryInterface.removeColumn(targetTable, 'community_id');
   }
 }; 
