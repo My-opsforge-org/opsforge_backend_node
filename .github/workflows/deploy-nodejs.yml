@@ -1,0 +1,170 @@
+name: Deploy Node.js Backend to Azure VM
+
+on:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+     
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test -- --passWithNoTests
+        env:
+          NODE_ENV: test
+          # Database Configuration
+          POSTGRES_DB: gotripdb
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: admin
+          POSTGRES_HOST: gotrip-postgres.postgres.database.azure.com
+          POSTGRES_PORT: 5432
+          DATABASE_URL: postgresql://postgres:admin@gotrip-postgres.postgres.database.azure.com:5432/gotripdb
+          
+          # Client Configuration
+          CLIENT_URL: http://localhost:3000
+          CORS_ORIGIN: http://localhost:3000,http://your-frontend-domain.com
+          
+          # Security Keys
+          SECRET_KEY: ${{ secrets.SECRET_KEY || 'aftabs_secret_key' }}
+          JWT_SECRET_KEY: ${{ secrets.JWT_SECRET_KEY || 'aftabs_jwt_secret_key' }}
+          
+          # OpenAI Configuration
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY || '' }}
+          OPENAI_MODEL: gpt-3.5-turbo
+          OPENAI_MAX_TOKENS: 150
+          OPENAI_TEMPERATURE: 0.7
+          
+          # Avatar Chat Configuration
+          MAX_CONVERSATION_LENGTH: 10
+          CONTEXT_WINDOW: 5
+          
+          # Google Places API
+          GOOGLE_PLACES_API_KEY: ${{ secrets.GOOGLE_PLACES_API_KEY || 'AIzaSyDMOv3ucij8PQPtVLPvFZ88arhaRfl0lEA' }}
+          
+          # Flask Configuration
+          FLASK_APP: manage.py
+
+      - name: Install sshpass
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y sshpass
+
+      - name: Clean app directory on VM
+        run: |
+          sshpass -p ${{ secrets.VM_PASSWORD }} ssh -o StrictHostKeyChecking=no ${{ secrets.VM_USERNAME }}@${{ secrets.VM_PUBLIC_IP }} "\
+            rm -rf /home/${{ secrets.VM_USERNAME }}/node-backend && \
+            mkdir -p /home/${{ secrets.VM_USERNAME }}/node-backend \
+          "
+
+      - name: Archive code (excluding node_modules and .git)
+        run: tar --exclude='./node_modules' --exclude='./.git' -czf code.tar.gz . || true
+
+      - name: Copy code archive to VM
+        run: sshpass -p ${{ secrets.VM_PASSWORD }} scp -o StrictHostKeyChecking=no code.tar.gz ${{ secrets.VM_USERNAME }}@${{ secrets.VM_PUBLIC_IP }}:/home/${{ secrets.VM_USERNAME }}/node-backend
+
+      - name: Extract code on VM
+        run: sshpass -p ${{ secrets.VM_PASSWORD }} ssh -o StrictHostKeyChecking=no ${{ secrets.VM_USERNAME }}@${{ secrets.VM_PUBLIC_IP }} "cd /home/${{ secrets.VM_USERNAME }}/node-backend && tar -xzf code.tar.gz && rm code.tar.gz"
+
+      - name: Install Node.js and dependencies on VM
+        run: |
+          sshpass -p ${{ secrets.VM_PASSWORD }} ssh -o StrictHostKeyChecking=no ${{ secrets.VM_USERNAME }}@${{ secrets.VM_PUBLIC_IP }} "\
+            cd /home/${{ secrets.VM_USERNAME }}/node-backend && \
+            curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash - && \
+            sudo apt-get install -y nodejs && \
+            npm ci --production && \
+            sudo npm install -g pm2 \
+          "
+
+          
+      - name: Create environment file on VM
+        run: |
+          sshpass -p ${{ secrets.VM_PASSWORD }} ssh -o StrictHostKeyChecking=no ${{ secrets.VM_USERNAME }}@${{ secrets.VM_PUBLIC_IP }} "\
+            cd /home/${{ secrets.VM_USERNAME }}/node-backend && \
+            cat > .env << 'EOF'
+          NODE_ENV=production
+          PORT=5001
+          
+          # Database Configuration
+          POSTGRES_DB=gotripdb
+          POSTGRES_USER=postgres
+          POSTGRES_PASSWORD=admin
+          POSTGRES_HOST=gotrip-postgres.postgres.database.azure.com
+          POSTGRES_PORT=5432
+          DATABASE_URL=postgresql://postgres:admin@gotrip-postgres.postgres.database.azure.com:5432/gotripdb
+          
+          # Client Configuration
+          CLIENT_URL=http://localhost:3000
+          CORS_ORIGIN=http://localhost:3000,http://your-frontend-domain.com
+          
+          # Security Keys
+          SECRET_KEY=${{ secrets.SECRET_KEY || 'aftabs_secret_key' }}
+          JWT_SECRET_KEY=${{ secrets.JWT_SECRET_KEY || 'aftabs_jwt_secret_key' }}
+          
+          # OpenAI Configuration
+          OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY || '' }}
+          OPENAI_MODEL=gpt-3.5-turbo
+          OPENAI_MAX_TOKENS=150
+          OPENAI_TEMPERATURE=0.7
+          
+          # Avatar Chat Configuration
+          MAX_CONVERSATION_LENGTH=10
+          CONTEXT_WINDOW=5
+          
+          # Google Places API
+          GOOGLE_PLACES_API_KEY=${{ secrets.GOOGLE_PLACES_API_KEY || 'AIzaSyDMOv3ucij8PQPtVLPvFZ88arhaRfl0lEA' }}
+          
+          # Flask Configuration
+          FLASK_APP=manage.py
+          EOF"
+
+      - name: Deploy and Start App with PM2
+        run: |
+          sshpass -p ${{ secrets.VM_PASSWORD }} ssh -o StrictHostKeyChecking=no ${{ secrets.VM_USERNAME }}@${{ secrets.VM_PUBLIC_IP }} "\
+            cd /home/${{ secrets.VM_USERNAME }}/node-backend && \
+            pm2 delete node-backend || true && \
+            pm2 start src/index.js --name 'node-backend' --env production && \
+            pm2 save && \
+            pm2 startup || true \
+          "
+      
+      - name: Check deployment status
+        run: |
+          sshpass -p ${{ secrets.VM_PASSWORD }} ssh -o StrictHostKeyChecking=no ${{ secrets.VM_USERNAME }}@${{ secrets.VM_PUBLIC_IP }} "\
+            pm2 status && \
+            curl -f http://localhost:5001 || echo 'App not responding yet' \
+          "
+
+# Required secrets:
+# VM_PUBLIC_IP: The public IP of your Azure VM (from Terraform output)
+# VM_USERNAME: The admin username for your VM (e.g., azureuser)
+# VM_PASSWORD: The admin password for your VM
+
+# Environment Variables (configured in the workflow):
+# Database: POSTGRES_DB, POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_HOST, POSTGRES_PORT, DATABASE_URL
+# Security: SECRET_KEY, JWT_SECRET_KEY
+# OpenAI: OPENAI_API_KEY, OPENAI_MODEL, OPENAI_MAX_TOKENS, OPENAI_TEMPERATURE
+# Avatar Chat: MAX_CONVERSATION_LENGTH, CONTEXT_WINDOW
+# Google Places: GOOGLE_PLACES_API_KEY
+# Flask: FLASK_APP
+# Client: CLIENT_URL
+
+# Instructions:
+# 1. Add all required secrets to your GitHub repository
+# 2. The workflow runs on push to master and can be triggered manually
+# 3. PM2 will manage the Node.js process and restart it if it crashes
+# 4. The app will be accessible on port 5001
+# 5. All environment variables are automatically configured on the VM
