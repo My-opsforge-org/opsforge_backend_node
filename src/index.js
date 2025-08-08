@@ -43,21 +43,21 @@ const io = new Server(httpServer, {
 // Make Socket.IO instance available to route handlers/controllers
 app.set('io', io);
 
-// Rate limiting - very lenient for development
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: process.env.RATE_LIMIT_MAX || 10000, // limit each IP to 10000 requests per windowMs (very high for development)
-  message: {
-    error: 'Too many requests from this IP, please try again later.'
-  },
-  skip: (req) => {
-    // Skip rate limiting for health checks and certain endpoints in development
-    if (process.env.NODE_ENV === 'development') {
-      return req.path === '/api/health' || req.path === '/api/test-db';
-    }
-    return false;
-  }
-});
+// Rate limiting - DISABLED for both development and production
+// const limiter = rateLimit({
+//   windowMs: 15 * 60 * 1000, // 15 minutes
+//   max: process.env.RATE_LIMIT_MAX || 10000, // limit each IP to 10000 requests per windowMs (very high for development)
+//   message: {
+//     error: 'Too many requests from this IP, please try again later.'
+//   },
+//   skip: (req) => {
+//     // Skip rate limiting for health checks and certain endpoints in development
+//     if (process.env.NODE_ENV === 'development') {
+//       return req.path === '/api/health' || req.path === '/api/test-db';
+//     }
+//     return false;
+//   }
+// });
 
 // Middleware
 app.use(cors({
@@ -81,21 +81,21 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 // Rate limiting is now applied conditionally below
 
-// More lenient rate limiting for auth endpoints
-const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: process.env.AUTH_RATE_LIMIT_MAX || 50, // limit each IP to 50 auth requests per windowMs
-  message: {
-    error: 'Too many authentication attempts from this IP, please try again later.'
-  },
-  skip: (req) => {
-    // Skip rate limiting for health checks in development
-    if (process.env.NODE_ENV === 'development') {
-      return req.path === '/api/health' || req.path === '/api/test-db';
-    }
-    return false;
-  }
-});
+// Auth rate limiting - DISABLED for both development and production
+// const authLimiter = rateLimit({
+//   windowMs: 15 * 60 * 1000, // 15 minutes
+//   max: process.env.AUTH_RATE_LIMIT_MAX || 50, // limit each IP to 50 auth requests per windowMs
+//   message: {
+//     error: 'Too many authentication attempts from this IP, please try again later.'
+//   },
+//   skip: (req) => {
+//     // Skip rate limiting for health checks in development
+//     if (process.env.NODE_ENV === 'development') {
+//       return req.path === '/api/health' || req.path === '/api/test-db';
+//     }
+//     return false;
+//   }
+// });
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
@@ -108,33 +108,8 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// Development endpoint to clear rate limiting (only in development)
-if (process.env.NODE_ENV === 'development') {
-  app.post('/api/clear-rate-limit', (req, res) => {
-    // Reset rate limit counters for the current IP
-    const clientIp = req.ip || req.connection.remoteAddress;
-    console.log(`Clearing rate limit for IP: ${clientIp}`);
-    
-    // Note: This is a simplified approach. In a real implementation,
-    // you'd need to access the rate limit store directly
-    res.json({
-      message: 'Rate limit reset for development',
-      timestamp: new Date().toISOString(),
-      ip: clientIp
-    });
-  });
-  
-  // Disable rate limiting completely for development
-  app.use((req, res, next) => {
-    if (process.env.NODE_ENV === 'development') {
-      // Skip rate limiting entirely in development
-      return next();
-    }
-    return limiter(req, res, next);
-  });
-} else {
-  app.use(limiter);
-}
+// Rate limiting completely disabled
+console.log('🚀 Rate limiting DISABLED for all environments');
 
 // Test database connection
 app.get('/api/test-db', async (req, res) => {
@@ -162,7 +137,7 @@ app.get('/api/test-db', async (req, res) => {
 });
 
 // Routes
-app.use('/api', authLimiter, authRoutes); // Apply auth rate limiter to auth routes
+app.use('/api', authRoutes); // No rate limiting
 app.use('/api/users', userRoutes);
 app.use('/api/communities', communityRoutes);
 app.use('/api/posts', postRoutes);
