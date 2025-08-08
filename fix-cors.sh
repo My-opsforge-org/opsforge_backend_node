@@ -17,7 +17,7 @@ echo "📝 Updating CORS configuration on VM..."
 # Update the .env file on the VM with correct CORS settings
 sshpass -p "$VM_PASSWORD" ssh -o StrictHostKeyChecking=no -o ConnectTimeout=30 -o ServerAliveInterval=60 -o ServerAliveCountMax=3 "$VM_USERNAME@$VM_PUBLIC_IP" "
     cd /home/$VM_USERNAME/node-backend &&
-    sed -i 's|CORS_ORIGIN=.*|CORS_ORIGIN=http://localhost:3000,http://4.205.220.45,http://your-frontend-domain.com|' .env &&
+    sed -i 's|CORS_ORIGIN=.*|CORS_ORIGIN=\"*\"|' .env &&
     echo 'CORS configuration updated in .env file'
 "
 
@@ -35,7 +35,7 @@ sleep 5
 
 # Test the CORS configuration
 echo "🧪 Testing CORS configuration..."
-curl -H "Origin: http://4.205.220.45" \
+curl -H "Origin: http://4.205.228.59" \
      -H "Access-Control-Request-Method: POST" \
      -H "Access-Control-Request-Headers: Content-Type" \
      -X OPTIONS \
