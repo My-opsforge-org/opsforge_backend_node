@@ -122,8 +122,12 @@ router.get('/', verifyToken, async (req, res) => {
       index === self.findIndex(p => p.id === post.id)
     );
 
-    // Sort by created_at descending
-    uniquePosts.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    // Sort by createdAt (model attribute) descending
+    uniquePosts.sort((a, b) => {
+      const aDate = a.createdAt || a.get && a.get('createdAt');
+      const bDate = b.createdAt || b.get && b.get('createdAt');
+      return new Date(bDate) - new Date(aDate);
+    });
 
     // Paginate manually
     const total = uniquePosts.length;
@@ -138,6 +142,30 @@ router.get('/', verifyToken, async (req, res) => {
       if (post.community) {
         postData.community = post.community.toJSON();
       }
+      
+      // Set user-specific fields
+      const userReaction = post.getUserReaction(req.userId);
+      postData.is_liked = userReaction === 'like';
+      postData.is_disliked = userReaction === 'dislike';
+      
+      // Ensure timestamps are present in response (both snake_case and camelCase)
+      const createdAt = post.createdAt || (post.get && post.get('createdAt'));
+      const updatedAt = post.updatedAt || (post.get && post.get('updatedAt'));
+      if (createdAt instanceof Date) {
+        postData.created_at = createdAt.toISOString();
+        postData.createdAt = createdAt.toISOString();
+      } else if (createdAt) {
+        postData.created_at = createdAt;
+        postData.createdAt = createdAt;
+      }
+      if (updatedAt instanceof Date) {
+        postData.updated_at = updatedAt.toISOString();
+        postData.updatedAt = updatedAt.toISOString();
+      } else if (updatedAt) {
+        postData.updated_at = updatedAt;
+        postData.updatedAt = updatedAt;
+      }
+      
       return postData;
     });
 

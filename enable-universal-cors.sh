@@ -104,3 +104,4 @@ echo "   - This is convenient for development but not recommended for production
 echo "   - Consider restricting CORS origins for production deployments"
 echo ""
 echo "To revert to restricted CORS, run: ./quick-cors-fix.sh"
+

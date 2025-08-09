@@ -16,6 +16,10 @@ const Community = sequelize.define('Community', {
     type: DataTypes.TEXT,
     allowNull: true
   },
+  image_url: {
+    type: DataTypes.STRING(1000),
+    allowNull: true
+  },
   createdAt: {
     type: DataTypes.DATE,
     allowNull: false,

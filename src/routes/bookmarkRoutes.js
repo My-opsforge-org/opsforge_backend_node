@@ -1,5 +1,5 @@
 const express = require('express');
-const { Post, Bookmark, User, Image } = require('../models');
+const { Post, Bookmark, User, Image, Reaction, Community } = require('../models');
 const { verifyToken } = require('../middleware/auth');
 
 const router = express.Router();
@@ -74,6 +74,16 @@ router.get('/', verifyToken, async (req, res) => {
             {
               model: Image,
               as: 'images'
+            },
+            {
+              model: Reaction,
+              as: 'reactions',
+              attributes: ['id', 'reaction_type', 'user_id']
+            },
+            {
+              model: Community,
+              as: 'community',
+              attributes: ['id', 'name']
             }
           ]
         }
@@ -82,7 +92,17 @@ router.get('/', verifyToken, async (req, res) => {
 
     const bookmarkedPosts = bookmarks
       .filter(bookmark => bookmark.Post) // Filter out bookmarks with null posts
-      .map(bookmark => bookmark.Post.toJSON())
+      .map(bookmark => {
+        const postData = bookmark.Post.toJSON();
+        
+        // Set user-specific fields
+        const userReaction = bookmark.Post.getUserReaction(req.userId);
+        postData.is_liked = userReaction === 'like';
+        postData.is_disliked = userReaction === 'dislike';
+        postData.is_bookmarked = true; // Obviously true since it's a bookmarked post
+        
+        return postData;
+      })
       .sort((a, b) => new Date(b.created_at) - new Date(a.created_at)); // Sort by created_at descending
     
     res.json(bookmarkedPosts);

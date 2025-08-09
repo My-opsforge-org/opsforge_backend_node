@@ -40,7 +40,8 @@ router.get('/', verifyToken, async (req, res) => {
 // Create new community
 router.post('/', verifyToken, [
   body('name').isLength({ min: 1, max: 100 }),
-  body('description').optional().isLength({ max: 1000 })
+  body('description').optional().isLength({ max: 1000 }),
+  body('image_url').optional().isURL().withMessage('image_url must be a valid URL')
 ], async (req, res) => {
   try {
     const errors = validationResult(req);
@@ -51,7 +52,7 @@ router.post('/', verifyToken, [
       });
     }
 
-    const { name, description } = req.body;
+    const { name, description, image_url } = req.body;
 
     // Check if community name already exists
     const existingCommunity = await Community.findOne({ where: { name } });
@@ -61,7 +62,8 @@ router.post('/', verifyToken, [
 
     const community = await Community.create({
       name,
-      description
+      description,
+      image_url
     });
 
     res.status(201).json({
@@ -70,6 +72,56 @@ router.post('/', verifyToken, [
     });
   } catch (error) {
     console.error('Create community error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Update community
+router.put('/:communityId', verifyToken, [
+  body('name').optional().isLength({ min: 1, max: 100 }),
+  body('description').optional().isLength({ max: 1000 }),
+  body('image_url').optional().isURL().withMessage('image_url must be a valid URL')
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ 
+        error: 'Validation failed',
+        details: errors.array()
+      });
+    }
+
+    const { communityId } = req.params;
+    const community = await Community.findByPk(communityId);
+    if (!community) {
+      return res.status(404).json({ error: 'Community not found' });
+    }
+
+    const { name, description, image_url } = req.body;
+    if (name !== undefined) community.name = name;
+    if (description !== undefined) community.description = description;
+    if (image_url !== undefined) community.image_url = image_url;
+    await community.save();
+
+    res.json({ message: 'Community updated', community: community.toJSON() });
+  } catch (error) {
+    console.error('Update community error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Delete community
+router.delete('/:communityId', verifyToken, async (req, res) => {
+  try {
+    const { communityId } = req.params;
+    const community = await Community.findByPk(communityId);
+    if (!community) {
+      return res.status(404).json({ error: 'Community not found' });
+    }
+    await community.destroy();
+    res.json({ message: 'Community deleted' });
+  } catch (error) {
+    console.error('Delete community error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -293,12 +345,22 @@ router.get('/:communityId/posts', verifyToken, async (req, res) => {
         { model: Image, as: 'images' },
         { model: User, as: 'author', attributes: ['id', 'name', 'email', 'avatarUrl'] },
         { model: Comment, as: 'comments', attributes: ['id'] },
-        { model: Reaction, as: 'reactions', attributes: ['id', 'reaction_type'] }
+        { model: Reaction, as: 'reactions', attributes: ['id', 'reaction_type', 'user_id'] }
       ],
       order: [['created_at', 'DESC']]
     });
 
-    const postsData = posts.map(post => post.toJSON());
+    const postsData = posts.map(post => {
+      const postData = post.toJSON();
+      
+      // Set user-specific fields
+      const userReaction = post.getUserReaction(req.userId);
+      postData.is_liked = userReaction === 'like';
+      postData.is_disliked = userReaction === 'dislike';
+      
+      return postData;
+    });
+    
     res.json(postsData);
   } catch (error) {
     console.error('Get community posts error:', error);
