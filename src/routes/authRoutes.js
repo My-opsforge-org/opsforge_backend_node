@@ -4,6 +4,7 @@ const jwt = require('jsonwebtoken');
 const { body, validationResult } = require('express-validator');
 const { User, TokenBlocklist } = require('../models');
 const { verifyToken } = require('../middleware/auth');
+const { admin } = require('../config/firebase');
 
 const router = express.Router();
 
@@ -108,6 +109,94 @@ router.post('/register', [
   } catch (error) {
     console.error('Registration error:', error);
     res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Firebase authentication route
+router.post('/firebase-login', async (req, res) => {
+  try {
+    const { idToken } = req.body;
+    
+    if (!idToken) {
+      return res.status(400).json({ error: 'Firebase ID token is required' });
+    }
+
+    // Verify Firebase token
+    const decodedToken = await admin.auth().verifyIdToken(idToken);
+    const { uid, email, name, picture } = decodedToken;
+    
+    // Extract name from email if Firebase doesn't provide it
+    let displayName = name;
+    if (!displayName && email) {
+      // Extract name from email (e.g., "john.doe@gmail.com" -> "John Doe")
+      const emailName = email.split('@')[0];
+      displayName = emailName
+        .split(/[._-]/)
+        .map(part => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+        .join(' ');
+    }
+    
+    // Fallback name if still no name
+    if (!displayName) {
+      displayName = 'User';
+    }
+
+    // Find or create user
+    let user = await User.findOne({ 
+      where: { 
+        [require('sequelize').Op.or]: [
+          { firebase_uid: uid },
+          { email: email }
+        ]
+      }
+    });
+    
+    if (!user) {
+      // Create new user
+      user = await User.create({
+        name: displayName,
+        email,
+        firebase_uid: uid,
+        auth_provider: 'google', // or determine from provider data
+        avatarUrl: picture || 'https://picsum.photos/256/256',
+        password: null // No password for OAuth users
+      });
+    } else {
+      // Update existing user with latest Firebase data
+      const updateData = {
+        firebase_uid: uid,
+        auth_provider: 'google'
+      };
+      
+      // Update name if it's different or if user doesn't have a name
+      if (displayName && (displayName !== user.name || !user.name)) {
+        updateData.name = displayName;
+      }
+      
+      // Update avatar if Firebase provides one and user doesn't have one
+      if (picture && (!user.avatarUrl || user.avatarUrl === 'https://picsum.photos/256/256')) {
+        updateData.avatarUrl = picture;
+      }
+      
+      await user.update(updateData);
+    }
+
+    // Generate JWT token using your existing system
+    const jti = require('crypto').randomBytes(16).toString('hex');
+    const token = jwt.sign(
+      { sub: user.id, email: user.email, jti },
+      process.env.JWT_SECRET_KEY,
+      { expiresIn: '1h' }
+    );
+
+    res.json({
+      access_token: token,
+      message: 'Firebase authentication successful',
+      user: user.toJSON()
+    });
+  } catch (error) {
+    console.error('Firebase auth error:', error);
+    res.status(500).json({ error: 'Firebase authentication failed' });
   }
 });
 

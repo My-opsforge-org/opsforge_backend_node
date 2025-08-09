@@ -18,7 +18,18 @@ const User = sequelize.define('User', {
   },
   password: {
     type: DataTypes.STRING(60),
-    allowNull: false
+    allowNull: true  // Make optional for OAuth users
+  },
+  // Add Firebase fields
+  firebase_uid: {
+    type: DataTypes.STRING(128),
+    unique: true,
+    allowNull: true
+  },
+  auth_provider: {
+    type: DataTypes.ENUM('local', 'google', 'apple'),
+    allowNull: false,
+    defaultValue: 'local'
   },
   avatarUrl: {
     type: DataTypes.STRING(255),

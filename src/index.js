@@ -9,6 +9,7 @@ const jwt = require('jsonwebtoken');
 const sequelize = require('./config/database');
 const { User, TokenBlocklist, Message } = require('./models');
 const { verifyToken } = require('./middleware/auth');
+const { initializeFirebase } = require('./config/firebase');
 
 // Import routes
 const authRoutes = require('./routes/authRoutes');
@@ -419,6 +420,9 @@ app.use((req, res) => {
 
 async function startServer() {
   try {
+    // Initialize Firebase
+    initializeFirebase();
+    
     // Sync database
     await sequelize.sync({ alter: process.env.NODE_ENV === 'development' });
     console.log('Database synced successfully');
