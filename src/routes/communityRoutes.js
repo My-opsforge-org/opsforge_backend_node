@@ -118,7 +118,22 @@ router.delete('/:communityId', verifyToken, async (req, res) => {
     if (!community) {
       return res.status(404).json({ error: 'Community not found' });
     }
+
+    // Delete related data first to avoid foreign key constraint violations
+    const { Post, Comment, Reaction, Bookmark, Message, UserProgress } = require('../models');
+    
+    // Delete community posts and related data (cascading will handle images, comments, reactions, bookmarks)
+    await Post.destroy({ where: { community_id: communityId } });
+    
+    // Delete community messages
+    await Message.destroy({ where: { community_id: communityId } });
+    
+    // Remove all community members
+    await community.setMembers([]);
+    
+    // Now delete the community
     await community.destroy();
+    
     res.json({ message: 'Community deleted' });
   } catch (error) {
     console.error('Delete community error:', error);
