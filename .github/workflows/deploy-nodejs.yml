@@ -150,10 +150,67 @@ jobs:
         run: |
           sshpass -p ${{ secrets.VM_PASSWORD }} ssh -o StrictHostKeyChecking=no -o ConnectTimeout=30 -o ServerAliveInterval=60 -o ServerAliveCountMax=3 ${{ secrets.VM_USERNAME }}@${{ secrets.VM_PUBLIC_IP }} "\
             sudo mkdir -p /etc/ssl/opsforge.me && \
-            echo '${{ secrets.SSL_CERTIFICATE }}' | sudo tee /etc/ssl/opsforge.me/opsforge.me.crt > /dev/null && \
-            echo '${{ secrets.SSL_PRIVATE_KEY }}' | sudo tee /etc/ssl/opsforge.me/opsforge.me.key > /dev/null && \
+            echo '${{ secrets.SSL_CERTIFICATE }}' | sed 's/\\n/\n/g' | sudo tee /etc/ssl/opsforge.me/opsforge.me.crt > /dev/null && \
+            echo '${{ secrets.SSL_PRIVATE_KEY }}' | sed 's/\\n/\n/g' | sudo tee /etc/ssl/opsforge.me/opsforge.me.key > /dev/null && \
             sudo chmod 600 /etc/ssl/opsforge.me/opsforge.me.key && \
-            sudo chmod 644 /etc/ssl/opsforge.me/opsforge.me.crt \
+            sudo chmod 644 /etc/ssl/opsforge.me/opsforge.me.crt && \
+            echo 'SSL certificates deployed successfully' && \
+            echo 'Certificate content preview:' && \
+            sudo head -5 /etc/ssl/opsforge.me/opsforge.me.crt && \
+            echo 'Private key content preview:' && \
+            sudo head -5 /etc/ssl/opsforge.me/opsforge.me.key \
+          "
+
+      - name: Validate SSL certificates
+        run: |
+          sshpass -p ${{ secrets.VM_PASSWORD }} ssh -o StrictHostKeyChecking=no -o ConnectTimeout=30 -o ServerAliveInterval=60 -o ServerAliveCountMax=3 ${{ secrets.VM_USERNAME }}@${{ secrets.VM_PUBLIC_IP }} "\
+            echo '=== Validating SSL Certificate ===' && \
+            if sudo openssl x509 -in /etc/ssl/opsforge.me/opsforge.me.crt -text -noout > /dev/null 2>&1; then \
+              echo '✅ Certificate is valid' && \
+              sudo openssl x509 -in /etc/ssl/opsforge.me/opsforge.me.crt -text -noout | grep -E '(Subject:|Not After:|DNS:)' && \
+              echo '=== Validating Private Key ===' && \
+              if sudo openssl rsa -in /etc/ssl/opsforge.me/opsforge.me.key -check -noout > /dev/null 2>&1; then \
+                echo '✅ Private key is valid' && \
+                echo '=== Testing Certificate + Key Pair ===' && \
+                if sudo openssl x509 -noout -modulus -in /etc/ssl/opsforge.me/opsforge.me.crt | sudo openssl md5 | grep -q \$(sudo openssl rsa -noout -modulus -in /etc/ssl/opsforge.me/opsforge.me.key | sudo openssl md5); then \
+                  echo '✅ Certificate and private key are a matching pair' && \
+                  echo 'Ready to configure Nginx' && \
+                  exit 0; \
+                else \
+                  echo '❌ Certificate and private key do not match' && \
+                  exit 1; \
+                fi; \
+              else \
+                echo '❌ Private key is invalid' && \
+                exit 1; \
+              fi; \
+            else \
+              echo '❌ Certificate is invalid' && \
+              echo 'Certificate content:' && \
+              sudo cat /etc/ssl/opsforge.me/opsforge.me.crt && \
+              exit 1; \
+            fi \
+          "
+
+      - name: Create fallback self-signed certificate (if needed)
+        run: |
+          sshpass -p ${{ secrets.VM_PASSWORD }} ssh -o StrictHostKeyChecking=no -o ConnectTimeout=30 -o ServerAliveInterval=60 -o ServerAliveCountMax=3 ${{ secrets.VM_USERNAME }}@${{ secrets.VM_PUBLIC_IP }} "\
+            if [ ! -f /etc/ssl/opsforge.me/opsforge.me.crt ] || ! sudo openssl x509 -in /etc/ssl/opsforge.me/opsforge.me.crt -text -noout > /dev/null 2>&1; then \
+              echo '⚠️  Creating fallback self-signed certificate...' && \
+              sudo mkdir -p /etc/ssl/opsforge.me && \
+              sudo openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+                -keyout /etc/ssl/opsforge.me/opsforge.me.key \
+                -out /etc/ssl/opsforge.me/opsforge.me.crt \
+                -subj '/C=CA/ST=Ontario/L=Toronto/O=OpsForge/CN=opsforge.me' && \
+              sudo chmod 600 /etc/ssl/opsforge.me/opsforge.me.key && \
+              sudo chmod 644 /etc/ssl/opsforge.me/opsforge.me.crt && \
+              echo '✅ Fallback self-signed certificate created' && \
+              echo '⚠️  Note: This is a self-signed certificate and will show browser warnings' && \
+              exit 0; \
+            else \
+              echo '✅ Using provided SSL certificate' && \
+              exit 0; \
+            fi \
           "
 
       - name: Configure Nginx with SSL
