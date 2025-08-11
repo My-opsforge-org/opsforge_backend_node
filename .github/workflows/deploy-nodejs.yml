@@ -89,7 +89,6 @@ jobs:
             npm ci --production && \
             sudo npm install -g pm2 \
           "
-
           
       - name: Create environment file on VM
         run: |
