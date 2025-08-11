@@ -1,3 +1,5 @@
+require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') });
+
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
@@ -64,7 +66,6 @@ const avatarChatRoutes = require('./routes/avatarChatRoutes');
 const chatRoutes = require('./routes/chatRoutes');
 const userProgressRoutes = require('./routes/userProgressRoutes');
 
-require('dotenv').config();
 
 const app = express();
 const httpServer = createServer(app);
