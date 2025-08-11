@@ -33,18 +33,18 @@ jobs:
           POSTGRES_PASSWORD: admin
           POSTGRES_HOST: gotrip-postgres.postgres.database.azure.com
           POSTGRES_PORT: 5432
-          DATABASE_URL: postgresql://postgres:admin@gotrip-postgres.postgres.database.azure.com:5432/gotripdb
+          DATABASE_URL: postgresql://postgres:admin@gotrip-postgres.postgres.database.azure.com/gotripdb
           
           # Client Configuration
           CLIENT_URL: http://localhost:3000
           CORS_ORIGIN: "*"
           
           # Security Keys
-          SECRET_KEY: ${{ secrets.SECRET_KEY || 'aftabs_secret_key' }}
-          JWT_SECRET_KEY: ${{ secrets.JWT_SECRET_KEY || 'aftabs_jwt_secret_key' }}
+          SECRET_KEY: ${{ secrets.SECRET_KEY }}
+          JWT_SECRET_KEY: ${{ secrets.JWT_SECRET_KEY }}
           
           # OpenAI Configuration
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY || '' }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           OPENAI_MODEL: gpt-3.5-turbo
           OPENAI_MAX_TOKENS: 150
           OPENAI_TEMPERATURE: 0.7
@@ -54,7 +54,7 @@ jobs:
           CONTEXT_WINDOW: 5
           
           # Google Places API
-          GOOGLE_PLACES_API_KEY: ${{ secrets.GOOGLE_PLACES_API_KEY || 'AIzaSyDMOv3ucij8PQPtVLPvFZ88arhaRfl0lEA' }}
+          GOOGLE_PLACES_API_KEY: ${{ secrets.GOOGLE_PLACES_API_KEY }}
           
           # Flask Configuration
           FLASK_APP: manage.py
@@ -105,18 +105,18 @@ jobs:
           POSTGRES_PASSWORD=admin
           POSTGRES_HOST=gotrip-postgres.postgres.database.azure.com
           POSTGRES_PORT=5432
-          DATABASE_URL=postgresql://postgres:admin@gotrip-postgres.postgres.database.azure.com:5432/gotripdb
+          DATABASE_URL=postgresql://postgres:admin@gotrip-postgres.postgres.database.azure.com/gotripdb
           
           # Client Configuration
           CLIENT_URL=http://localhost:3000
           CORS_ORIGIN="*"
           
           # Security Keys
-          SECRET_KEY=${{ secrets.SECRET_KEY || 'aftabs_secret_key' }}
-          JWT_SECRET_KEY=${{ secrets.JWT_SECRET_KEY || 'aftabs_jwt_secret_key' }}
+          SECRET_KEY=${{ secrets.SECRET_KEY }}
+          JWT_SECRET_KEY=${{ secrets.JWT_SECRET_KEY }}
           
           # OpenAI Configuration
-          OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY || '' }}
+          OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
           OPENAI_MODEL=gpt-3.5-turbo
           OPENAI_MAX_TOKENS=150
           OPENAI_TEMPERATURE=0.7
@@ -126,7 +126,7 @@ jobs:
           CONTEXT_WINDOW=5
           
           # Google Places API
-          GOOGLE_PLACES_API_KEY=${{ secrets.GOOGLE_PLACES_API_KEY || 'AIzaSyDMOv3ucij8PQPtVLPvFZ88arhaRfl0lEA' }}
+          GOOGLE_PLACES_API_KEY=${{ secrets.GOOGLE_PLACES_API_KEY }}
           
           # Flask Configuration
           FLASK_APP=manage.py
@@ -153,6 +153,10 @@ jobs:
 # VM_PUBLIC_IP: The public IP of your Azure VM (from Terraform output)
 # VM_USERNAME: The admin username for your VM (e.g., azureuser)
 # VM_PASSWORD: The admin password for your VM
+# SECRET_KEY: Your application secret key
+# JWT_SECRET_KEY: Your JWT secret key
+# OPENAI_API_KEY: Your OpenAI API key
+# GOOGLE_PLACES_API_KEY: Your Google Places API key
 
 # Environment Variables (configured in the workflow):
 # Database: POSTGRES_DB, POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_HOST, POSTGRES_PORT, DATABASE_URL
