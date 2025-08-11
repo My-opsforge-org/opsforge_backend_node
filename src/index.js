@@ -10,6 +10,42 @@ const sequelize = require('./config/database');
 const { User, TokenBlocklist, Message } = require('./models');
 const { verifyToken } = require('./middleware/auth');
 const { initializeFirebase } = require('./config/firebase');
+const fs = require('fs');
+const path = require('path');
+
+// Create logs directory if it doesn't exist
+const logsDir = path.join(__dirname, '..', 'logs');
+if (!fs.existsSync(logsDir)) {
+  fs.mkdirSync(logsDir, { recursive: true });
+}
+
+// Create write streams for logging
+const accessLogStream = fs.createWriteStream(path.join(logsDir, 'access.log'), { flags: 'a' });
+const errorLogStream = fs.createWriteStream(path.join(logsDir, 'error.log'), { flags: 'a' });
+const appLogStream = fs.createWriteStream(path.join(logsDir, 'app.log'), { flags: 'a' });
+
+// Custom logging function
+const logToFile = (level, message, data = null) => {
+  const timestamp = new Date().toISOString();
+  const logEntry = {
+    timestamp,
+    level,
+    message,
+    data
+  };
+  
+  const logString = JSON.stringify(logEntry) + '\n';
+  appLogStream.write(logString);
+  
+  // Also log to console
+  if (level === 'ERROR') {
+    console.error(`[${timestamp}] ${level}: ${message}`, data);
+  } else if (level === 'WARN') {
+    console.warn(`[${timestamp}] ${level}: ${message}`, data);
+  } else {
+    console.log(`[${timestamp}] ${level}: ${message}`, data);
+  }
+};
 
 // Import routes
 const authRoutes = require('./routes/authRoutes');
@@ -407,6 +443,15 @@ io.on('connection', (socket) => {
 
 // Error handling middleware
 app.use((err, req, res, next) => {
+  logToFile('ERROR', 'Express error middleware caught error', {
+    error: err.message,
+    stack: err.stack,
+    url: req.url,
+    method: req.method,
+    ip: req.ip,
+    userAgent: req.get('User-Agent')
+  });
+  
   console.error('Error:', err.stack);
   res.status(500).json({ 
     error: process.env.NODE_ENV === 'production' ? 'Something went wrong!' : err.message 
@@ -420,21 +465,34 @@ app.use((req, res) => {
 
 async function startServer() {
   try {
+    logToFile('INFO', 'Starting Go Tripping Backend Server...');
+    
     // Initialize Firebase
+    logToFile('INFO', 'Initializing Firebase...');
     initializeFirebase();
+    logToFile('INFO', 'Firebase initialization completed');
     
     // Sync database
+    logToFile('INFO', 'Syncing database...');
     await sequelize.sync({ alter: process.env.NODE_ENV === 'development' });
-    console.log('Database synced successfully');
+    logToFile('INFO', 'Database synced successfully');
 
     const PORT = process.env.PORT || 5002;
     httpServer.listen(PORT, () => {
+      logToFile('INFO', `🚀 Go Tripping Backend Server running on port ${PORT}`);
+      logToFile('INFO', `🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
+      logToFile('INFO', `📊 Health check: http://localhost:${PORT}/api/health`);
+      logToFile('INFO', `🔗 API Documentation: http://localhost:${PORT}/`);
+      logToFile('INFO', `📝 Logs directory: ${logsDir}`);
+      
       console.log(`🚀 Go Tripping Backend Server running on port ${PORT}`);
       console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
       console.log(`📊 Health check: http://localhost:${PORT}/api/health`);
       console.log(`🔗 API Documentation: http://localhost:${PORT}/`);
+      console.log(`📝 Logs directory: ${logsDir}`);
     });
   } catch (error) {
+    logToFile('ERROR', 'Failed to start server', { error: error.message, stack: error.stack });
     console.error('❌ Failed to start server:', error);
     process.exit(1);
   }

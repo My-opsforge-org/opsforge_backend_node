@@ -121,8 +121,20 @@ router.post('/firebase-login', async (req, res) => {
       return res.status(400).json({ error: 'Firebase ID token is required' });
     }
 
+    console.log('Firebase login attempt - Token received:', idToken.substring(0, 20) + '...');
+    console.log('Firebase admin object:', !!admin);
+    console.log('Firebase admin auth method:', !!admin?.auth);
+
+    // Check if Firebase is properly initialized
+    if (!admin || !admin.auth) {
+      console.error('Firebase Admin SDK not properly initialized');
+      return res.status(500).json({ error: 'Firebase service not available' });
+    }
+
     // Verify Firebase token
     const decodedToken = await admin.auth().verifyIdToken(idToken);
+    console.log('Firebase token verified successfully:', { uid: decodedToken.uid, email: decodedToken.email });
+    
     const { uid, email, name, picture } = decodedToken;
     
     // Extract name from email if Firebase doesn't provide it
@@ -161,6 +173,7 @@ router.post('/firebase-login', async (req, res) => {
         avatarUrl: picture || 'https://picsum.photos/256/256',
         password: null // No password for OAuth users
       });
+      console.log('New user created:', user.id);
     } else {
       // Update existing user with latest Firebase data
       const updateData = {
@@ -179,6 +192,7 @@ router.post('/firebase-login', async (req, res) => {
       }
       
       await user.update(updateData);
+      console.log('Existing user updated:', user.id);
     }
 
     // Generate JWT token using your existing system
@@ -189,14 +203,56 @@ router.post('/firebase-login', async (req, res) => {
       { expiresIn: '1h' }
     );
 
+    console.log('Firebase authentication successful for user:', user.id);
     res.json({
       access_token: token,
       message: 'Firebase authentication successful',
       user: user.toJSON()
     });
   } catch (error) {
-    console.error('Firebase auth error:', error);
-    res.status(500).json({ error: 'Firebase authentication failed' });
+    console.error('Firebase auth error details:', {
+      message: error.message,
+      code: error.code,
+      stack: error.stack,
+      name: error.name
+    });
+    
+    // Provide more specific error messages
+    if (error.code === 'auth/id-token-expired') {
+      return res.status(401).json({ error: 'Firebase token expired' });
+    } else if (error.code === 'auth/id-token-revoked') {
+      return res.status(401).json({ error: 'Firebase token revoked' });
+    } else if (error.code === 'auth/invalid-id-token') {
+      return res.status(400).json({ error: 'Invalid Firebase token' });
+    }
+    
+    res.status(500).json({ error: 'Firebase authentication failed', details: error.message });
+  }
+});
+
+// Debug endpoint to check Firebase configuration
+router.get('/firebase-debug', (req, res) => {
+  try {
+    const firebaseStatus = {
+      adminAvailable: !!admin,
+      authMethodAvailable: !!(admin && admin.auth),
+      environmentVars: {
+        FIREBASE_PROJECT_ID: !!process.env.FIREBASE_PROJECT_ID,
+        FIREBASE_CLIENT_EMAIL: !!process.env.FIREBASE_CLIENT_EMAIL,
+        FIREBASE_PRIVATE_KEY: !!process.env.FIREBASE_PRIVATE_KEY,
+        FIREBASE_SERVICE_ACCOUNT_KEY: !!process.env.FIREBASE_SERVICE_ACCOUNT_KEY
+      },
+      currentConfig: {
+        projectId: process.env.FIREBASE_PROJECT_ID,
+        clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+        privateKeyLength: process.env.FIREBASE_PRIVATE_KEY ? process.env.FIREBASE_PRIVATE_KEY.length : 0,
+        serviceAccountKeyLength: process.env.FIREBASE_SERVICE_ACCOUNT_KEY ? process.env.FIREBASE_SERVICE_ACCOUNT_KEY.length : 0
+      }
+    };
+    
+    res.json(firebaseStatus);
+  } catch (error) {
+    res.status(500).json({ error: 'Debug endpoint failed', details: error.message });
   }
 });
 
