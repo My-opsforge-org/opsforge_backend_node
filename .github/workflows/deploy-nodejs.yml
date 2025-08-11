@@ -64,43 +64,9 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y sshpass
 
-      - name: Test SSH connection
-        run: |
-          echo "Testing SSH connection to VM..."
-          for i in {1..3}; do
-            echo "Attempt $i of 3: Testing SSH connection..."
-            if sshpass -p ${{ secrets.VM_PASSWORD }} ssh -o StrictHostKeyChecking=no -o ConnectTimeout=30 -o ServerAliveInterval=60 -o ServerAliveCountMax=3 ${{ secrets.VM_USERNAME }}@${{ secrets.VM_PUBLIC_IP }} "echo 'SSH connection successful' && uptime"; then
-              echo "✅ SSH connection test passed!"
-              break
-            else
-              echo "❌ Attempt $i failed. Waiting 15 seconds before retry..."
-              sleep 15
-              if [ $i -eq 3 ]; then
-                echo "❌ All SSH connection attempts failed. Exiting."
-                exit 1
-              fi
-            fi
-          done
-
-      - name: Check VM resources
-        run: |
-          echo "Checking VM resources..."
-          sshpass -p ${{ secrets.VM_PASSWORD }} ssh -o StrictHostKeyChecking=no -o ConnectTimeout=30 -o ServerAliveInterval=60 -o ServerAliveCountMax=3 ${{ secrets.VM_USERNAME }}@${{ secrets.VM_PUBLIC_IP }} "\
-            echo '=== System Info ===' && \
-            uname -a && \
-            echo '=== Memory Usage ===' && \
-            free -h && \
-            echo '=== Disk Usage ===' && \
-            df -h && \
-            echo '=== CPU Info ===' && \
-            nproc && \
-            echo '=== Load Average ===' && \
-            uptime \
-          "
-
       - name: Clean app directory on VM
         run: |
-          sshpass -p ${{ secrets.VM_PASSWORD }} ssh -o StrictHostKeyChecking=no -o ConnectTimeout=30 -o ServerAliveInterval=60 -o ServerAliveCountMax=3 ${{ secrets.VM_USERNAME }}@${{ secrets.VM_PUBLIC_IP }} "\
+          sshpass -p ${{ secrets.VM_PASSWORD }} ssh -o StrictHostKeyChecking=no ${{ secrets.VM_USERNAME }}@${{ secrets.VM_PUBLIC_IP }} "\
             rm -rf /home/${{ secrets.VM_USERNAME }}/node-backend && \
             mkdir -p /home/${{ secrets.VM_USERNAME }}/node-backend \
           "
@@ -109,285 +75,24 @@ jobs:
         run: tar --exclude='./node_modules' --exclude='./.git' -czf code.tar.gz . || true
 
       - name: Copy code archive to VM
-        run: |
-          for i in {1..3}; do
-            echo "Attempt $i of 3: Copying code archive to VM..."
-            if sshpass -p ${{ secrets.VM_PASSWORD }} scp -o StrictHostKeyChecking=no -o ConnectTimeout=30 -o ServerAliveInterval=60 -o ServerAliveCountMax=3 code.tar.gz ${{ secrets.VM_USERNAME }}@${{ secrets.VM_PUBLIC_IP }}:/home/${{ secrets.VM_USERNAME }}/node-backend; then
-              echo "Code archive copied successfully!"
-              break
-            else
-              echo "Attempt $i failed. Waiting 10 seconds before retry..."
-              sleep 10
-              if [ $i -eq 3 ]; then
-                echo "All attempts failed. Exiting."
-                exit 1
-              fi
-            fi
-          done
+        run: sshpass -p ${{ secrets.VM_PASSWORD }} scp -o StrictHostKeyChecking=no code.tar.gz ${{ secrets.VM_USERNAME }}@${{ secrets.VM_PUBLIC_IP }}:/home/${{ secrets.VM_USERNAME }}/node-backend
 
       - name: Extract code on VM
-        run: |
-          sshpass -p ${{ secrets.VM_PASSWORD }} ssh -o StrictHostKeyChecking=no -o ConnectTimeout=30 -o ServerAliveInterval=60 -o ServerAliveCountMax=3 ${{ secrets.VM_USERNAME }}@${{ secrets.VM_PUBLIC_IP }} "cd /home/${{ secrets.VM_USERNAME }}/node-backend && tar -xzf code.tar.gz && rm code.tar.gz"
+        run: sshpass -p ${{ secrets.VM_PASSWORD }} ssh -o StrictHostKeyChecking=no ${{ secrets.VM_USERNAME }}@${{ secrets.VM_PUBLIC_IP }} "cd /home/${{ secrets.VM_USERNAME }}/node-backend && tar -xzf code.tar.gz && rm code.tar.gz"
 
       - name: Install Node.js and dependencies on VM
         run: |
-          sshpass -p ${{ secrets.VM_PASSWORD }} ssh -o StrictHostKeyChecking=no -o ConnectTimeout=30 -o ServerAliveInterval=60 -o ServerAliveCountMax=3 ${{ secrets.VM_USERNAME }}@${{ secrets.VM_PUBLIC_IP }} "\
+          sshpass -p ${{ secrets.VM_PASSWORD }} ssh -o StrictHostKeyChecking=no ${{ secrets.VM_USERNAME }}@${{ secrets.VM_PUBLIC_IP }} "\
             cd /home/${{ secrets.VM_USERNAME }}/node-backend && \
             curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash - && \
             sudo apt-get install -y nodejs && \
             npm ci --production && \
             sudo npm install -g pm2 \
           "
-
-      - name: Install Nginx and SSL tools
-        run: |
-          sshpass -p ${{ secrets.VM_PASSWORD }} ssh -o StrictHostKeyChecking=no -o ConnectTimeout=30 -o ServerAliveInterval=60 -o ServerAliveCountMax=3 ${{ secrets.VM_USERNAME }}@${{ secrets.VM_PUBLIC_IP }} "\
-            sudo apt-get update && \
-            sudo apt-get install -y nginx certbot python3-certbot-nginx \
-          "
-
-      - name: Debug SSL secrets (masked)
-        run: |
-          echo "=== SSL Secret Debug Info ==="
-          echo "SSL_CERTIFICATE length: ${#SSL_CERTIFICATE}"
-          echo "SSL_PRIVATE_KEY length: ${#SSL_PRIVATE_KEY}"
-          echo ""
-          echo "SSL_CERTIFICATE first 50 chars: ${SSL_CERTIFICATE:0:50}..."
-          echo "SSL_PRIVATE_KEY first 50 chars: ${SSL_PRIVATE_KEY:0:50}..."
-          echo ""
-          echo "SSL_CERTIFICATE contains BEGIN: $([[ "$SSL_CERTIFICATE" == *"BEGIN"* ]] && echo "YES" || echo "NO")"
-          echo "SSL_CERTIFICATE contains END: $([[ "$SSL_CERTIFICATE" == *"END"* ]] && echo "YES" || echo "NO")"
-          echo "SSL_PRIVATE_KEY contains BEGIN: $([[ "$SSL_PRIVATE_KEY" == *"BEGIN"* ]] && echo "YES" || echo "NO")"
-          echo "SSL_PRIVATE_KEY contains END: $([[ "$SSL_PRIVATE_KEY" == *"END"* ]] && echo "YES" || echo "NO")"
-        env:
-          SSL_CERTIFICATE: ${{ secrets.SSL_CERTIFICATE }}
-          SSL_PRIVATE_KEY: ${{ secrets.SSL_PRIVATE_KEY }}
-
-      - name: Deploy SSL certificates
-        run: |
-          sshpass -p ${{ secrets.VM_PASSWORD }} ssh -o StrictHostKeyChecking=no -o ConnectTimeout=30 -o ServerAliveInterval=60 -o ServerAliveCountMax=3 ${{ secrets.VM_USERNAME }}@${{ secrets.VM_PUBLIC_IP }} "\
-            sudo mkdir -p /etc/ssl/opsforge.me && \
-            echo '=== Processing SSL Certificate ===' && \
-            if [ -n '${{ secrets.SSL_CERTIFICATE }}' ]; then \
-              echo '${{ secrets.SSL_CERTIFICATE }}' > /tmp/cert_temp.txt && \
-              echo 'Certificate content written. Processing newlines...' && \
-              sed -i 's/\\\\n/\n/g' /tmp/cert_temp.txt && \
-              sed -i 's/\\n/\n/g' /tmp/cert_temp.txt && \
-              echo 'Certificate content processed. Checking format...' && \
-              if grep -q '-----BEGIN CERTIFICATE-----' /tmp/cert_temp.txt && grep -q '-----END CERTIFICATE-----' /tmp/cert_temp.txt; then \
-                echo '✅ Certificate format looks correct' && \
-                sudo cp /tmp/cert_temp.txt /etc/ssl/opsforge.me/opsforge.me.crt && \
-                echo 'Certificate deployed successfully' && \
-                echo 'Certificate file size:' && \
-                ls -la /etc/ssl/opsforge.me/opsforge.me.crt; \
-              else \
-                echo '❌ Certificate format is incorrect' && \
-                echo 'Expected: -----BEGIN CERTIFICATE----- and -----END CERTIFICATE-----' && \
-                echo 'Found:' && \
-                grep -E '(BEGIN|END)' /tmp/cert_temp.txt || echo 'No BEGIN/END markers found'; \
-              fi; \
-            else \
-              echo '❌ SSL_CERTIFICATE secret is empty'; \
-            fi && \
-            echo '=== Processing Private Key ===' && \
-            if [ -n '${{ secrets.SSL_PRIVATE_KEY }}' ]; then \
-              echo '${{ secrets.SSL_PRIVATE_KEY }}' > /tmp/key_temp.txt && \
-              echo 'Private key content written. Processing newlines...' && \
-              sed -i 's/\\\\n/\n/g' /tmp/key_temp.txt && \
-              sed -i 's/\\n/\n/g' /tmp/key_temp.txt && \
-              echo 'Private key content processed. Checking format...' && \
-              if grep -q '-----BEGIN PRIVATE KEY-----' /tmp/key_temp.txt && grep -q '-----END PRIVATE KEY-----' /tmp/key_temp.txt; then \
-                echo '✅ Private key format looks correct' && \
-                sudo cp /tmp/key_temp.txt /etc/ssl/opsforge.me/opsforge.me.key && \
-                echo 'Private key deployed successfully' && \
-                echo 'Private key file size:' && \
-                ls -la /etc/ssl/opsforge.me/opsforge.me.key; \
-              else \
-                echo '❌ Private key format is incorrect' && \
-                echo 'Expected: -----BEGIN PRIVATE KEY----- and -----END PRIVATE KEY-----' && \
-                echo 'Found:' && \
-                grep -E '(BEGIN|END)' /tmp/key_temp.txt || echo 'No BEGIN/END markers found'; \
-              fi; \
-            else \
-              echo '❌ SSL_PRIVATE_KEY secret is empty'; \
-            fi && \
-            echo '=== Setting File Permissions ===' && \
-            if [ -f /etc/ssl/opsforge.me/opsforge.me.key ]; then \
-              sudo chmod 600 /etc/ssl/opsforge.me/opsforge.me.key && \
-              echo '✅ Private key permissions set to 600'; \
-            else \
-              echo '⚠️  Private key file not found, cannot set permissions'; \
-            fi && \
-            if [ -f /etc/ssl/opsforge.me/opsforge.me.crt ]; then \
-              sudo chmod 644 /etc/ssl/opsforge.me/opsforge.me.crt && \
-              echo '✅ Certificate permissions set to 644'; \
-            else \
-              echo '⚠️  Certificate file not found, cannot set permissions'; \
-            fi && \
-            echo '=== Final File Check ===' && \
-            ls -la /etc/ssl/opsforge.me/ && \
-            rm -f /tmp/cert_temp.txt /tmp/key_temp.txt \
-          "
-
-      - name: Verify SSL certificate files
-        run: |
-          sshpass -p ${{ secrets.VM_PASSWORD }} ssh -o StrictHostKeyChecking=no -o ConnectTimeout=30 -o ServerAliveInterval=60 -o ServerAliveCountMax=3 ${{ secrets.VM_USERNAME }}@${{ secrets.VM_PUBLIC_IP }} "\
-            echo '=== Verifying SSL Certificate Files ===' && \
-            if [ -f /etc/ssl/opsforge.me/opsforge.me.crt ]; then \
-              echo '✅ Certificate file exists' && \
-              echo 'Certificate file size:' && \
-              ls -la /etc/ssl/opsforge.me/opsforge.me.crt && \
-              echo 'Certificate first line:' && \
-              head -1 /etc/ssl/opsforge.me/opsforge.me.crt && \
-              echo 'Certificate last line:' && \
-              tail -1 /etc/ssl/opsforge.me/opsforge.me.crt && \
-              echo 'Certificate line count:' && \
-              wc -l /etc/ssl/opsforge.me/opsforge.me.crt; \
-            else \
-              echo '❌ Certificate file does not exist'; \
-            fi && \
-            if [ -f /etc/ssl/opsforge.me/opsforge.me.key ]; then \
-              echo '✅ Private key file exists' && \
-              echo 'Private key file size:' && \
-              ls -la /etc/ssl/opsforge.me/opsforge.me.key && \
-              echo 'Private key first line:' && \
-              head -1 /etc/ssl/opsforge.me/opsforge.me.key && \
-              echo 'Private key last line:' && \
-              tail -1 /etc/ssl/opsforge.me/opsforge.me.key && \
-              echo 'Private key line count:' && \
-              wc -l /etc/ssl/opsforge.me/opsforge.me.key; \
-            else \
-              echo '❌ Private key file does not exist'; \
-            fi \
-          "
-
-      - name: Validate SSL certificates
-        run: |
-          sshpass -p ${{ secrets.VM_PASSWORD }} ssh -o StrictHostKeyChecking=no -o ConnectTimeout=30 -o ServerAliveInterval=60 -o ServerAliveCountMax=3 ${{ secrets.VM_USERNAME }}@${{ secrets.VM_PUBLIC_IP }} "\
-            echo '=== Checking SSL Certificate Status ===' && \
-            if [ -f /etc/ssl/opsforge.me/opsforge.me.crt ]; then \
-              echo 'Certificate file exists. Validating...' && \
-              if sudo openssl x509 -in /etc/ssl/opsforge.me/opsforge.me.crt -text -noout > /dev/null 2>&1; then \
-                echo '✅ Certificate is valid' && \
-                sudo openssl x509 -in /etc/ssl/opsforge.me/opsforge.me.crt -text -noout | grep -E '(Subject:|Not After:|DNS:)' && \
-                echo '=== Validating Private Key ===' && \
-                if [ -f /etc/ssl/opsforge.me/opsforge.me.key ]; then \
-                  if sudo openssl rsa -in /etc/ssl/opsforge.me/opsforge.me.key -check -noout > /dev/null 2>&1; then \
-                    echo '✅ Private key is valid' && \
-                    echo '=== Testing Certificate + Key Pair ===' && \
-                    if sudo openssl x509 -noout -modulus -in /etc/ssl/opsforge.me/opsforge.me.crt | sudo openssl md5 | grep -q \$(sudo openssl rsa -noout -modulus -in /etc/ssl/opsforge.me/opsforge.me.key | sudo openssl md5); then \
-                      echo '✅ Certificate and private key are a matching pair' && \
-                      echo 'Ready to configure Nginx' && \
-                      exit 0; \
-                    else \
-                      echo '❌ Certificate and private key do not match' && \
-                      exit 1; \
-                    fi; \
-                  else \
-                    echo '❌ Private key is invalid' && \
-                    exit 1; \
-                  fi; \
-                else \
-                  echo '❌ Private key file does not exist' && \
-                  exit 1; \
-                fi; \
-              else \
-                echo '❌ Certificate is invalid' && \
-                echo 'Certificate content:' && \
-                sudo cat /etc/ssl/opsforge.me/opsforge.me.crt && \
-                exit 1; \
-              fi; \
-            else \
-              echo '❌ Certificate file does not exist' && \
-              exit 1; \
-            fi \
-          "
-
-      - name: Create fallback self-signed certificate (if needed)
-        run: |
-          sshpass -p ${{ secrets.VM_PASSWORD }} ssh -o StrictHostKeyChecking=no -o ConnectTimeout=30 -o ServerAliveInterval=60 -o ServerAliveCountMax=3 ${{ secrets.VM_USERNAME }}@${{ secrets.VM_PUBLIC_IP }} "\
-            if [ ! -f /etc/ssl/opsforge.me/opsforge.me.crt ] || ! sudo openssl x509 -in /etc/ssl/opsforge.me/opsforge.me.crt -text -noout > /dev/null 2>&1; then \
-              echo '⚠️  Creating fallback self-signed certificate...' && \
-              sudo mkdir -p /etc/ssl/opsforge.me && \
-              sudo openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
-                -keyout /etc/ssl/opsforge.me/opsforge.me.key \
-                -out /etc/ssl/opsforge.me/opsforge.me.crt \
-                -subj '/C=CA/ST=Ontario/L=Toronto/O=OpsForge/CN=opsforge.me' && \
-              sudo chmod 600 /etc/ssl/opsforge.me/opsforge.me.key && \
-              sudo chmod 644 /etc/ssl/opsforge.me/opsforge.me.crt && \
-              echo '✅ Fallback self-signed certificate created' && \
-              echo '⚠️  Note: This is a self-signed certificate and will show browser warnings' && \
-              exit 0; \
-            else \
-              echo '✅ Using provided SSL certificate' && \
-              exit 0; \
-            fi \
-          "
-
-      - name: Configure Nginx with SSL
-        run: |
-          sshpass -p ${{ secrets.VM_PASSWORD }} ssh -o StrictHostKeyChecking=no -o ConnectTimeout=30 -o ServerAliveInterval=60 -o ServerAliveCountMax=3 ${{ secrets.VM_USERNAME }}@${{ secrets.VM_PUBLIC_IP }} "\
-            sudo tee /etc/nginx/sites-available/opsforge.me > /dev/null << 'EOF'
-          server {
-              listen 80;
-              server_name opsforge.me www.opsforge.me;
-              return 301 https://\$server_name\$request_uri;
-          }
-
-          server {
-              listen 443 ssl http2;
-              server_name opsforge.me www.opsforge.me;
-
-              ssl_certificate /etc/ssl/opsforge.me/opsforge.me.crt;
-              ssl_certificate_key /etc/ssl/opsforge.me/opsforge.me.key;
-              ssl_protocols TLSv1.2 TLSv1.3;
-              ssl_ciphers ECDHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-SHA256:ECDHE-RSA-AES256-SHA384;
-              ssl_prefer_server_ciphers off;
-              ssl_session_cache shared:SSL:10m;
-              ssl_session_timeout 10m;
-
-              # Frontend (React app)
-              location / {
-                  root /home/${{ secrets.VM_USERNAME }}/frontend/build;
-                  try_files \$uri \$uri/ /index.html;
-                  add_header Cache-Control 'no-cache, no-store, must-revalidate';
-                  add_header Pragma 'no-cache';
-                  add_header Expires '0';
-              }
-
-              # Backend API
-              location /api/ {
-                  proxy_pass http://localhost:5002;
-                  proxy_http_version 1.1;
-                  proxy_set_header Upgrade \$http_upgrade;
-                  proxy_set_header Connection 'upgrade';
-                  proxy_set_header Host \$host;
-                  proxy_set_header X-Real-IP \$remote_addr;
-                  proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-                  proxy_set_header X-Forwarded-Proto \$scheme;
-                  proxy_cache_bypass \$http_upgrade;
-              }
-
-              # Health check
-              location /health {
-                  proxy_pass http://localhost:5002/api/health;
-                  proxy_set_header Host \$host;
-                  proxy_set_header X-Real-IP \$remote_addr;
-                  proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-                  proxy_set_header X-Forwarded-Proto \$scheme;
-              }
-          }
-          EOF
-
-          sudo ln -sf /etc/nginx/sites-available/opsforge.me /etc/nginx/sites-enabled/ && \
-          sudo rm -f /etc/nginx/sites-enabled/default && \
-          sudo nginx -t && \
-          sudo systemctl reload nginx \
-          "
           
       - name: Create environment file on VM
         run: |
-          sshpass -p ${{ secrets.VM_PASSWORD }} ssh -o StrictHostKeyChecking=no -o ConnectTimeout=30 -o ServerAliveInterval=60 -o ServerAliveCountMax=3 ${{ secrets.VM_USERNAME }}@${{ secrets.VM_PUBLIC_IP }} "\
+          sshpass -p ${{ secrets.VM_PASSWORD }} ssh -o StrictHostKeyChecking=no ${{ secrets.VM_USERNAME }}@${{ secrets.VM_PUBLIC_IP }} "\
             cd /home/${{ secrets.VM_USERNAME }}/node-backend && \
             cat > .env << 'EOF'
           NODE_ENV=production
@@ -433,41 +138,19 @@ jobs:
 
       - name: Deploy and Start App with PM2
         run: |
-          sshpass -p ${{ secrets.VM_PASSWORD }} ssh -o StrictHostKeyChecking=no -o ConnectTimeout=30 -o ServerAliveInterval=60 -o ServerAliveCountMax=3 ${{ secrets.VM_USERNAME }}@${{ secrets.VM_PUBLIC_IP }} "\
+          sshpass -p ${{ secrets.VM_PASSWORD }} ssh -o StrictHostKeyChecking=no ${{ secrets.VM_USERNAME }}@${{ secrets.VM_PUBLIC_IP }} "\
             cd /home/${{ secrets.VM_USERNAME }}/node-backend && \
             pm2 delete node-backend || true && \
             pm2 start src/index.js --name 'node-backend' --env production && \
             pm2 save && \
             pm2 startup || true \
           "
-
-      - name: Deploy Frontend (if exists)
-        run: |
-          sshpass -p ${{ secrets.VM_PASSWORD }} ssh -o StrictHostKeyChecking=no -o ConnectTimeout=30 -o ServerAliveInterval=60 -o ServerAliveCountMax=3 ${{ secrets.VM_USERNAME }}@${{ secrets.VM_PUBLIC_IP }} "\
-            if [ -d '/home/${{ secrets.VM_USERNAME }}/frontend' ]; then \
-              cd /home/${{ secrets.VM_USERNAME }}/frontend && \
-              npm ci --production && \
-              npm run build && \
-              sudo chown -R www-data:www-data build/ && \
-              echo 'Frontend deployed successfully'; \
-            else \
-              echo 'Frontend directory not found, skipping frontend deployment'; \
-            fi \
-          "
       
       - name: Check deployment status
         run: |
-          sshpass -p ${{ secrets.VM_PASSWORD }} ssh -o StrictHostKeyChecking=no -o ConnectTimeout=30 -o ServerAliveInterval=60 -o ServerAliveCountMax=3 ${{ secrets.VM_USERNAME }}@${{ secrets.VM_PUBLIC_IP }} "\
-            echo '=== PM2 Status ===' && \
+          sshpass -p ${{ secrets.VM_PASSWORD }} ssh -o StrictHostKeyChecking=no ${{ secrets.VM_USERNAME }}@${{ secrets.VM_PUBLIC_IP }} "\
             pm2 status && \
-            echo '=== Backend Health Check ===' && \
-            curl -f http://localhost:5002/api/health || echo 'Backend not responding yet' && \
-            echo '=== SSL Certificate Check ===' && \
-            sudo openssl x509 -in /etc/ssl/opsforge.me/opsforge.me.crt -text -noout | grep -E '(Subject:|Not After:|DNS:)' && \
-            echo '=== Nginx Status ===' && \
-            sudo systemctl status nginx --no-pager -l && \
-            echo '=== SSL Test ===' && \
-            curl -k -I https://opsforge.me/health || echo 'HTTPS not accessible yet' \
+            curl -f http://localhost:5002 || echo 'App not responding yet' \
           "
 
 # Required secrets:
@@ -481,8 +164,6 @@ jobs:
 # FIREBASE_PROJECT_ID: Your Firebase project ID
 # FIREBASE_CLIENT_EMAIL: Your Firebase client email
 # FIREBASE_PRIVATE_KEY: Your Firebase private key
-# SSL_CERTIFICATE: Your SSL certificate (PEM format) - content of opsforge.me.crt
-# SSL_PRIVATE_KEY: Your SSL private key (PEM format) - content of opsforge.me.key
 
 # Environment Variables (configured in the workflow):
 # Database: POSTGRES_DB, POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_HOST, POSTGRES_PORT, DATABASE_URL
