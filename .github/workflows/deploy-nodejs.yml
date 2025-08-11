@@ -64,9 +64,43 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y sshpass
 
+      - name: Test SSH connection
+        run: |
+          echo "Testing SSH connection to VM..."
+          for i in {1..3}; do
+            echo "Attempt $i of 3: Testing SSH connection..."
+            if sshpass -p ${{ secrets.VM_PASSWORD }} ssh -o StrictHostKeyChecking=no -o ConnectTimeout=30 -o ServerAliveInterval=60 -o ServerAliveCountMax=3 ${{ secrets.VM_USERNAME }}@${{ secrets.VM_PUBLIC_IP }} "echo 'SSH connection successful' && uptime"; then
+              echo "✅ SSH connection test passed!"
+              break
+            else
+              echo "❌ Attempt $i failed. Waiting 15 seconds before retry..."
+              sleep 15
+              if [ $i -eq 3 ]; then
+                echo "❌ All SSH connection attempts failed. Exiting."
+                exit 1
+              fi
+            fi
+          done
+
+      - name: Check VM resources
+        run: |
+          echo "Checking VM resources..."
+          sshpass -p ${{ secrets.VM_PASSWORD }} ssh -o StrictHostKeyChecking=no -o ConnectTimeout=30 -o ServerAliveInterval=60 -o ServerAliveCountMax=3 ${{ secrets.VM_USERNAME }}@${{ secrets.VM_PUBLIC_IP }} "\
+            echo '=== System Info ===' && \
+            uname -a && \
+            echo '=== Memory Usage ===' && \
+            free -h && \
+            echo '=== Disk Usage ===' && \
+            df -h && \
+            echo '=== CPU Info ===' && \
+            nproc && \
+            echo '=== Load Average ===' && \
+            uptime \
+          "
+
       - name: Clean app directory on VM
         run: |
-          sshpass -p ${{ secrets.VM_PASSWORD }} ssh -o StrictHostKeyChecking=no ${{ secrets.VM_USERNAME }}@${{ secrets.VM_PUBLIC_IP }} "\
+          sshpass -p ${{ secrets.VM_PASSWORD }} ssh -o StrictHostKeyChecking=no -o ConnectTimeout=30 -o ServerAliveInterval=60 -o ServerAliveCountMax=3 ${{ secrets.VM_USERNAME }}@${{ secrets.VM_PUBLIC_IP }} "\
             rm -rf /home/${{ secrets.VM_USERNAME }}/node-backend && \
             mkdir -p /home/${{ secrets.VM_USERNAME }}/node-backend \
           "
@@ -75,14 +109,29 @@ jobs:
         run: tar --exclude='./node_modules' --exclude='./.git' -czf code.tar.gz . || true
 
       - name: Copy code archive to VM
-        run: sshpass -p ${{ secrets.VM_PASSWORD }} scp -o StrictHostKeyChecking=no code.tar.gz ${{ secrets.VM_USERNAME }}@${{ secrets.VM_PUBLIC_IP }}:/home/${{ secrets.VM_USERNAME }}/node-backend
+        run: |
+          for i in {1..3}; do
+            echo "Attempt $i of 3: Copying code archive to VM..."
+            if sshpass -p ${{ secrets.VM_PASSWORD }} scp -o StrictHostKeyChecking=no -o ConnectTimeout=30 -o ServerAliveInterval=60 -o ServerAliveCountMax=3 code.tar.gz ${{ secrets.VM_USERNAME }}@${{ secrets.VM_PUBLIC_IP }}:/home/${{ secrets.VM_USERNAME }}/node-backend; then
+              echo "Code archive copied successfully!"
+              break
+            else
+              echo "Attempt $i failed. Waiting 10 seconds before retry..."
+              sleep 10
+              if [ $i -eq 3 ]; then
+                echo "All attempts failed. Exiting."
+                exit 1
+              fi
+            fi
+          done
 
       - name: Extract code on VM
-        run: sshpass -p ${{ secrets.VM_PASSWORD }} ssh -o StrictHostKeyChecking=no ${{ secrets.VM_USERNAME }}@${{ secrets.VM_PUBLIC_IP }} "cd /home/${{ secrets.VM_USERNAME }}/node-backend && tar -xzf code.tar.gz && rm code.tar.gz"
+        run: |
+          sshpass -p ${{ secrets.VM_PASSWORD }} ssh -o StrictHostKeyChecking=no -o ConnectTimeout=30 -o ServerAliveInterval=60 -o ServerAliveCountMax=3 ${{ secrets.VM_USERNAME }}@${{ secrets.VM_PUBLIC_IP }} "cd /home/${{ secrets.VM_USERNAME }}/node-backend && tar -xzf code.tar.gz && rm code.tar.gz"
 
       - name: Install Node.js and dependencies on VM
         run: |
-          sshpass -p ${{ secrets.VM_PASSWORD }} ssh -o StrictHostKeyChecking=no ${{ secrets.VM_USERNAME }}@${{ secrets.VM_PUBLIC_IP }} "\
+          sshpass -p ${{ secrets.VM_PASSWORD }} ssh -o StrictHostKeyChecking=no -o ConnectTimeout=30 -o ServerAliveInterval=60 -o ServerAliveCountMax=3 ${{ secrets.VM_USERNAME }}@${{ secrets.VM_PUBLIC_IP }} "\
             cd /home/${{ secrets.VM_USERNAME }}/node-backend && \
             curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash - && \
             sudo apt-get install -y nodejs && \
@@ -92,14 +141,14 @@ jobs:
 
       - name: Install Nginx and SSL tools
         run: |
-          sshpass -p ${{ secrets.VM_PASSWORD }} ssh -o StrictHostKeyChecking=no ${{ secrets.VM_USERNAME }}@${{ secrets.VM_PUBLIC_IP }} "\
+          sshpass -p ${{ secrets.VM_PASSWORD }} ssh -o StrictHostKeyChecking=no -o ConnectTimeout=30 -o ServerAliveInterval=60 -o ServerAliveCountMax=3 ${{ secrets.VM_USERNAME }}@${{ secrets.VM_PUBLIC_IP }} "\
             sudo apt-get update && \
             sudo apt-get install -y nginx certbot python3-certbot-nginx \
           "
 
       - name: Deploy SSL certificates
         run: |
-          sshpass -p ${{ secrets.VM_PASSWORD }} ssh -o StrictHostKeyChecking=no ${{ secrets.VM_USERNAME }}@${{ secrets.VM_PUBLIC_IP }} "\
+          sshpass -p ${{ secrets.VM_PASSWORD }} ssh -o StrictHostKeyChecking=no -o ConnectTimeout=30 -o ServerAliveInterval=60 -o ServerAliveCountMax=3 ${{ secrets.VM_USERNAME }}@${{ secrets.VM_PUBLIC_IP }} "\
             sudo mkdir -p /etc/ssl/opsforge.me && \
             echo '${{ secrets.SSL_CERTIFICATE }}' | sudo tee /etc/ssl/opsforge.me/opsforge.me.crt > /dev/null && \
             echo '${{ secrets.SSL_PRIVATE_KEY }}' | sudo tee /etc/ssl/opsforge.me/opsforge.me.key > /dev/null && \
@@ -109,7 +158,7 @@ jobs:
 
       - name: Configure Nginx with SSL
         run: |
-          sshpass -p ${{ secrets.VM_PASSWORD }} ssh -o StrictHostKeyChecking=no ${{ secrets.VM_USERNAME }}@${{ secrets.VM_PUBLIC_IP }} "\
+          sshpass -p ${{ secrets.VM_PASSWORD }} ssh -o StrictHostKeyChecking=no -o ConnectTimeout=30 -o ServerAliveInterval=60 -o ServerAliveCountMax=3 ${{ secrets.VM_USERNAME }}@${{ secrets.VM_PUBLIC_IP }} "\
             sudo tee /etc/nginx/sites-available/opsforge.me > /dev/null << 'EOF'
           server {
               listen 80;
@@ -170,7 +219,7 @@ jobs:
           
       - name: Create environment file on VM
         run: |
-          sshpass -p ${{ secrets.VM_PASSWORD }} ssh -o StrictHostKeyChecking=no ${{ secrets.VM_USERNAME }}@${{ secrets.VM_PUBLIC_IP }} "\
+          sshpass -p ${{ secrets.VM_PASSWORD }} ssh -o StrictHostKeyChecking=no -o ConnectTimeout=30 -o ServerAliveInterval=60 -o ServerAliveCountMax=3 ${{ secrets.VM_USERNAME }}@${{ secrets.VM_PUBLIC_IP }} "\
             cd /home/${{ secrets.VM_USERNAME }}/node-backend && \
             cat > .env << 'EOF'
           NODE_ENV=production
@@ -216,7 +265,7 @@ jobs:
 
       - name: Deploy and Start App with PM2
         run: |
-          sshpass -p ${{ secrets.VM_PASSWORD }} ssh -o StrictHostKeyChecking=no ${{ secrets.VM_USERNAME }}@${{ secrets.VM_PUBLIC_IP }} "\
+          sshpass -p ${{ secrets.VM_PASSWORD }} ssh -o StrictHostKeyChecking=no -o ConnectTimeout=30 -o ServerAliveInterval=60 -o ServerAliveCountMax=3 ${{ secrets.VM_USERNAME }}@${{ secrets.VM_PUBLIC_IP }} "\
             cd /home/${{ secrets.VM_USERNAME }}/node-backend && \
             pm2 delete node-backend || true && \
             pm2 start src/index.js --name 'node-backend' --env production && \
@@ -226,7 +275,7 @@ jobs:
 
       - name: Deploy Frontend (if exists)
         run: |
-          sshpass -p ${{ secrets.VM_PASSWORD }} ssh -o StrictHostKeyChecking=no ${{ secrets.VM_USERNAME }}@${{ secrets.VM_PUBLIC_IP }} "\
+          sshpass -p ${{ secrets.VM_PASSWORD }} ssh -o StrictHostKeyChecking=no -o ConnectTimeout=30 -o ServerAliveInterval=60 -o ServerAliveCountMax=3 ${{ secrets.VM_USERNAME }}@${{ secrets.VM_PUBLIC_IP }} "\
             if [ -d '/home/${{ secrets.VM_USERNAME }}/frontend' ]; then \
               cd /home/${{ secrets.VM_USERNAME }}/frontend && \
               npm ci --production && \
@@ -240,7 +289,7 @@ jobs:
       
       - name: Check deployment status
         run: |
-          sshpass -p ${{ secrets.VM_PASSWORD }} ssh -o StrictHostKeyChecking=no ${{ secrets.VM_USERNAME }}@${{ secrets.VM_PUBLIC_IP }} "\
+          sshpass -p ${{ secrets.VM_PASSWORD }} ssh -o StrictHostKeyChecking=no -o ConnectTimeout=30 -o ServerAliveInterval=60 -o ServerAliveCountMax=3 ${{ secrets.VM_USERNAME }}@${{ secrets.VM_PUBLIC_IP }} "\
             echo '=== PM2 Status ===' && \
             pm2 status && \
             echo '=== Backend Health Check ===' && \
