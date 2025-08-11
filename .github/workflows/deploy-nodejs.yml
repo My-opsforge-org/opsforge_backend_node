@@ -146,48 +146,108 @@ jobs:
             sudo apt-get install -y nginx certbot python3-certbot-nginx \
           "
 
+      - name: Debug SSL secrets (masked)
+        run: |
+          echo "=== SSL Secret Debug Info ==="
+          echo "SSL_CERTIFICATE length: ${#SSL_CERTIFICATE}"
+          echo "SSL_PRIVATE_KEY length: ${#SSL_PRIVATE_KEY}"
+          echo ""
+          echo "SSL_CERTIFICATE first 50 chars: ${SSL_CERTIFICATE:0:50}..."
+          echo "SSL_PRIVATE_KEY first 50 chars: ${SSL_PRIVATE_KEY:0:50}..."
+          echo ""
+          echo "SSL_CERTIFICATE contains BEGIN: $([[ "$SSL_CERTIFICATE" == *"BEGIN"* ]] && echo "YES" || echo "NO")"
+          echo "SSL_CERTIFICATE contains END: $([[ "$SSL_CERTIFICATE" == *"END"* ]] && echo "YES" || echo "NO")"
+          echo "SSL_PRIVATE_KEY contains BEGIN: $([[ "$SSL_PRIVATE_KEY" == *"BEGIN"* ]] && echo "YES" || echo "NO")"
+          echo "SSL_PRIVATE_KEY contains END: $([[ "$SSL_PRIVATE_KEY" == *"END"* ]] && echo "YES" || echo "NO")"
+        env:
+          SSL_CERTIFICATE: ${{ secrets.SSL_CERTIFICATE }}
+          SSL_PRIVATE_KEY: ${{ secrets.SSL_PRIVATE_KEY }}
+
       - name: Deploy SSL certificates
         run: |
           sshpass -p ${{ secrets.VM_PASSWORD }} ssh -o StrictHostKeyChecking=no -o ConnectTimeout=30 -o ServerAliveInterval=60 -o ServerAliveCountMax=3 ${{ secrets.VM_USERNAME }}@${{ secrets.VM_PUBLIC_IP }} "\
             sudo mkdir -p /etc/ssl/opsforge.me && \
-            echo '${{ secrets.SSL_CERTIFICATE }}' | sed 's/\\n/\n/g' | sudo tee /etc/ssl/opsforge.me/opsforge.me.crt > /dev/null && \
-            echo '${{ secrets.SSL_PRIVATE_KEY }}' | sed 's/\\n/\n/g' | sudo tee /etc/ssl/opsforge.me/opsforge.me.key > /dev/null && \
-            sudo chmod 600 /etc/ssl/opsforge.me/opsforge.me.key && \
-            sudo chmod 644 /etc/ssl/opsforge.me/opsforge.me.crt && \
-            echo 'SSL certificates deployed successfully' && \
-            echo 'Certificate content preview:' && \
-            sudo head -5 /etc/ssl/opsforge.me/opsforge.me.crt && \
-            echo 'Private key content preview:' && \
-            sudo head -5 /etc/ssl/opsforge.me/opsforge.me.key \
+            echo '=== Processing SSL Certificate ===' && \
+            if [ -n '${{ secrets.SSL_CERTIFICATE }}' ]; then \
+              echo '${{ secrets.SSL_CERTIFICATE }}' | sed 's/\\n/\n/g' | sed 's/\\\\n/\n/g' | sed 's/\\\\/\\/g' > /tmp/cert_temp.txt && \
+              echo 'Certificate content processed. First 10 lines:' && \
+              head -10 /tmp/cert_temp.txt && \
+              echo '=== Checking certificate format ===' && \
+              if grep -q '-----BEGIN CERTIFICATE-----' /tmp/cert_temp.txt && grep -q '-----END CERTIFICATE-----' /tmp/cert_temp.txt; then \
+                echo '✅ Certificate format looks correct' && \
+                sudo cp /tmp/cert_temp.txt /etc/ssl/opsforge.me/opsforge.me.crt && \
+                echo 'Certificate deployed successfully'; \
+              else \
+                echo '❌ Certificate format is incorrect' && \
+                echo 'Expected: -----BEGIN CERTIFICATE----- and -----END CERTIFICATE-----' && \
+                echo 'Found:' && \
+                grep -E '(BEGIN|END)' /tmp/cert_temp.txt || echo 'No BEGIN/END markers found'; \
+              fi; \
+            else \
+              echo '❌ SSL_CERTIFICATE secret is empty'; \
+            fi && \
+            echo '=== Processing Private Key ===' && \
+            if [ -n '${{ secrets.SSL_PRIVATE_KEY }}' ]; then \
+              echo '${{ secrets.SSL_PRIVATE_KEY }}' | sed 's/\\n/\n/g' | sed 's/\\\\n/\n/g' | sed 's/\\\\/\\/g' > /tmp/key_temp.txt && \
+              echo 'Private key content processed. First 10 lines:' && \
+              head -10 /tmp/key_temp.txt && \
+              echo '=== Checking private key format ===' && \
+              if grep -q '-----BEGIN PRIVATE KEY-----' /tmp/key_temp.txt && grep -q '-----END PRIVATE KEY-----' /tmp/key_temp.txt; then \
+                echo '✅ Private key format looks correct' && \
+                sudo cp /tmp/key_temp.txt /etc/ssl/opsforge.me/opsforge.me.key && \
+                echo 'Private key deployed successfully'; \
+              else \
+                echo '❌ Private key format is incorrect' && \
+                echo 'Expected: -----BEGIN PRIVATE KEY----- and -----END PRIVATE KEY-----' && \
+                echo 'Found:' && \
+                grep -E '(BEGIN|END)' /tmp/key_temp.txt || echo 'No BEGIN/END markers found'; \
+              fi; \
+            else \
+              echo '❌ SSL_PRIVATE_KEY secret is empty'; \
+            fi && \
+            sudo chmod 600 /etc/ssl/opsforge.me/opsforge.me.key 2>/dev/null || echo '⚠️  Could not set private key permissions' && \
+            sudo chmod 644 /etc/ssl/opsforge.me/opsforge.me.crt 2>/dev/null || echo '⚠️  Could not set certificate permissions' && \
+            rm -f /tmp/cert_temp.txt /tmp/key_temp.txt \
           "
 
       - name: Validate SSL certificates
         run: |
           sshpass -p ${{ secrets.VM_PASSWORD }} ssh -o StrictHostKeyChecking=no -o ConnectTimeout=30 -o ServerAliveInterval=60 -o ServerAliveCountMax=3 ${{ secrets.VM_USERNAME }}@${{ secrets.VM_PUBLIC_IP }} "\
-            echo '=== Validating SSL Certificate ===' && \
-            if sudo openssl x509 -in /etc/ssl/opsforge.me/opsforge.me.crt -text -noout > /dev/null 2>&1; then \
-              echo '✅ Certificate is valid' && \
-              sudo openssl x509 -in /etc/ssl/opsforge.me/opsforge.me.crt -text -noout | grep -E '(Subject:|Not After:|DNS:)' && \
-              echo '=== Validating Private Key ===' && \
-              if sudo openssl rsa -in /etc/ssl/opsforge.me/opsforge.me.key -check -noout > /dev/null 2>&1; then \
-                echo '✅ Private key is valid' && \
-                echo '=== Testing Certificate + Key Pair ===' && \
-                if sudo openssl x509 -noout -modulus -in /etc/ssl/opsforge.me/opsforge.me.crt | sudo openssl md5 | grep -q \$(sudo openssl rsa -noout -modulus -in /etc/ssl/opsforge.me/opsforge.me.key | sudo openssl md5); then \
-                  echo '✅ Certificate and private key are a matching pair' && \
-                  echo 'Ready to configure Nginx' && \
-                  exit 0; \
+            echo '=== Checking SSL Certificate Status ===' && \
+            if [ -f /etc/ssl/opsforge.me/opsforge.me.crt ]; then \
+              echo 'Certificate file exists. Validating...' && \
+              if sudo openssl x509 -in /etc/ssl/opsforge.me/opsforge.me.crt -text -noout > /dev/null 2>&1; then \
+                echo '✅ Certificate is valid' && \
+                sudo openssl x509 -in /etc/ssl/opsforge.me/opsforge.me.crt -text -noout | grep -E '(Subject:|Not After:|DNS:)' && \
+                echo '=== Validating Private Key ===' && \
+                if [ -f /etc/ssl/opsforge.me/opsforge.me.key ]; then \
+                  if sudo openssl rsa -in /etc/ssl/opsforge.me/opsforge.me.key -check -noout > /dev/null 2>&1; then \
+                    echo '✅ Private key is valid' && \
+                    echo '=== Testing Certificate + Key Pair ===' && \
+                    if sudo openssl x509 -noout -modulus -in /etc/ssl/opsforge.me/opsforge.me.crt | sudo openssl md5 | grep -q \$(sudo openssl rsa -noout -modulus -in /etc/ssl/opsforge.me/opsforge.me.key | sudo openssl md5); then \
+                      echo '✅ Certificate and private key are a matching pair' && \
+                      echo 'Ready to configure Nginx' && \
+                      exit 0; \
+                    else \
+                      echo '❌ Certificate and private key do not match' && \
+                      exit 1; \
+                    fi; \
+                  else \
+                    echo '❌ Private key is invalid' && \
+                    exit 1; \
+                  fi; \
                 else \
-                  echo '❌ Certificate and private key do not match' && \
+                  echo '❌ Private key file does not exist' && \
                   exit 1; \
                 fi; \
               else \
-                echo '❌ Private key is invalid' && \
+                echo '❌ Certificate is invalid' && \
+                echo 'Certificate content:' && \
+                sudo cat /etc/ssl/opsforge.me/opsforge.me.crt && \
                 exit 1; \
               fi; \
             else \
-              echo '❌ Certificate is invalid' && \
-              echo 'Certificate content:' && \
-              sudo cat /etc/ssl/opsforge.me/opsforge.me.crt && \
+              echo '❌ Certificate file does not exist' && \
               exit 1; \
             fi \
           "
