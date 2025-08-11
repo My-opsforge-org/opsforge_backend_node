@@ -169,14 +169,17 @@ jobs:
             sudo mkdir -p /etc/ssl/opsforge.me && \
             echo '=== Processing SSL Certificate ===' && \
             if [ -n '${{ secrets.SSL_CERTIFICATE }}' ]; then \
-              echo '${{ secrets.SSL_CERTIFICATE }}' | sed 's/\\n/\n/g' | sed 's/\\\\n/\n/g' | sed 's/\\\\/\\/g' > /tmp/cert_temp.txt && \
-              echo 'Certificate content processed. First 10 lines:' && \
-              head -10 /tmp/cert_temp.txt && \
-              echo '=== Checking certificate format ===' && \
+              echo '${{ secrets.SSL_CERTIFICATE }}' > /tmp/cert_temp.txt && \
+              echo 'Certificate content written. Processing newlines...' && \
+              sed -i 's/\\\\n/\n/g' /tmp/cert_temp.txt && \
+              sed -i 's/\\n/\n/g' /tmp/cert_temp.txt && \
+              echo 'Certificate content processed. Checking format...' && \
               if grep -q '-----BEGIN CERTIFICATE-----' /tmp/cert_temp.txt && grep -q '-----END CERTIFICATE-----' /tmp/cert_temp.txt; then \
                 echo '✅ Certificate format looks correct' && \
                 sudo cp /tmp/cert_temp.txt /etc/ssl/opsforge.me/opsforge.me.crt && \
-                echo 'Certificate deployed successfully'; \
+                echo 'Certificate deployed successfully' && \
+                echo 'Certificate file size:' && \
+                ls -la /etc/ssl/opsforge.me/opsforge.me.crt; \
               else \
                 echo '❌ Certificate format is incorrect' && \
                 echo 'Expected: -----BEGIN CERTIFICATE----- and -----END CERTIFICATE-----' && \
@@ -188,14 +191,17 @@ jobs:
             fi && \
             echo '=== Processing Private Key ===' && \
             if [ -n '${{ secrets.SSL_PRIVATE_KEY }}' ]; then \
-              echo '${{ secrets.SSL_PRIVATE_KEY }}' | sed 's/\\n/\n/g' | sed 's/\\\\n/\n/g' | sed 's/\\\\/\\/g' > /tmp/key_temp.txt && \
-              echo 'Private key content processed. First 10 lines:' && \
-              head -10 /tmp/key_temp.txt && \
-              echo '=== Checking private key format ===' && \
+              echo '${{ secrets.SSL_PRIVATE_KEY }}' > /tmp/key_temp.txt && \
+              echo 'Private key content written. Processing newlines...' && \
+              sed -i 's/\\\\n/\n/g' /tmp/key_temp.txt && \
+              sed -i 's/\\n/\n/g' /tmp/key_temp.txt && \
+              echo 'Private key content processed. Checking format...' && \
               if grep -q '-----BEGIN PRIVATE KEY-----' /tmp/key_temp.txt && grep -q '-----END PRIVATE KEY-----' /tmp/key_temp.txt; then \
                 echo '✅ Private key format looks correct' && \
                 sudo cp /tmp/key_temp.txt /etc/ssl/opsforge.me/opsforge.me.key && \
-                echo 'Private key deployed successfully'; \
+                echo 'Private key deployed successfully' && \
+                echo 'Private key file size:' && \
+                ls -la /etc/ssl/opsforge.me/opsforge.me.key; \
               else \
                 echo '❌ Private key format is incorrect' && \
                 echo 'Expected: -----BEGIN PRIVATE KEY----- and -----END PRIVATE KEY-----' && \
@@ -205,9 +211,54 @@ jobs:
             else \
               echo '❌ SSL_PRIVATE_KEY secret is empty'; \
             fi && \
-            sudo chmod 600 /etc/ssl/opsforge.me/opsforge.me.key 2>/dev/null || echo '⚠️  Could not set private key permissions' && \
-            sudo chmod 644 /etc/ssl/opsforge.me/opsforge.me.crt 2>/dev/null || echo '⚠️  Could not set certificate permissions' && \
+            echo '=== Setting File Permissions ===' && \
+            if [ -f /etc/ssl/opsforge.me/opsforge.me.key ]; then \
+              sudo chmod 600 /etc/ssl/opsforge.me/opsforge.me.key && \
+              echo '✅ Private key permissions set to 600'; \
+            else \
+              echo '⚠️  Private key file not found, cannot set permissions'; \
+            fi && \
+            if [ -f /etc/ssl/opsforge.me/opsforge.me.crt ]; then \
+              sudo chmod 644 /etc/ssl/opsforge.me/opsforge.me.crt && \
+              echo '✅ Certificate permissions set to 644'; \
+            else \
+              echo '⚠️  Certificate file not found, cannot set permissions'; \
+            fi && \
+            echo '=== Final File Check ===' && \
+            ls -la /etc/ssl/opsforge.me/ && \
             rm -f /tmp/cert_temp.txt /tmp/key_temp.txt \
+          "
+
+      - name: Verify SSL certificate files
+        run: |
+          sshpass -p ${{ secrets.VM_PASSWORD }} ssh -o StrictHostKeyChecking=no -o ConnectTimeout=30 -o ServerAliveInterval=60 -o ServerAliveCountMax=3 ${{ secrets.VM_USERNAME }}@${{ secrets.VM_PUBLIC_IP }} "\
+            echo '=== Verifying SSL Certificate Files ===' && \
+            if [ -f /etc/ssl/opsforge.me/opsforge.me.crt ]; then \
+              echo '✅ Certificate file exists' && \
+              echo 'Certificate file size:' && \
+              ls -la /etc/ssl/opsforge.me/opsforge.me.crt && \
+              echo 'Certificate first line:' && \
+              head -1 /etc/ssl/opsforge.me/opsforge.me.crt && \
+              echo 'Certificate last line:' && \
+              tail -1 /etc/ssl/opsforge.me/opsforge.me.crt && \
+              echo 'Certificate line count:' && \
+              wc -l /etc/ssl/opsforge.me/opsforge.me.crt; \
+            else \
+              echo '❌ Certificate file does not exist'; \
+            fi && \
+            if [ -f /etc/ssl/opsforge.me/opsforge.me.key ]; then \
+              echo '✅ Private key file exists' && \
+              echo 'Private key file size:' && \
+              ls -la /etc/ssl/opsforge.me/opsforge.me.key && \
+              echo 'Private key first line:' && \
+              head -1 /etc/ssl/opsforge.me/opsforge.me.key && \
+              echo 'Private key last line:' && \
+              tail -1 /etc/ssl/opsforge.me/opsforge.me.key && \
+              echo 'Private key line count:' && \
+              wc -l /etc/ssl/opsforge.me/opsforge.me.key; \
+            else \
+              echo '❌ Private key file does not exist'; \
+            fi \
           "
 
       - name: Validate SSL certificates
