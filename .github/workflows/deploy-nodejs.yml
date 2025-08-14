@@ -98,6 +98,7 @@ jobs:
           NODE_ENV=production
           PORT=5002
           
+          
           # Database Configuration
           POSTGRES_DB=gotripdb
           POSTGRES_USER=postgres
